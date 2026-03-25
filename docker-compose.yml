@@ -7,6 +7,11 @@ services:
     container_name: starlink-tvbox-api
     ports:
       - "8089:8089"
+    # 持久化目录：升级/重建容器后数据不丢失
+    # DATA_DIR 在 .env 中配置，可指定任意宿主机路径
     volumes:
-      - ./data:/app/data
+      - ${DATA_DIR:-./data}:/app/data
+    # 从 .env 文件加载环境变量（密钥、邀请码等配置）
+    env_file:
+      - .env
     restart: unless-stopped

@@ -6,8 +6,9 @@ from functools import wraps
 import json
 
 app = Flask(__name__)
-app.secret_key = 'super-secret-starlink-clone-key'  # In production, use os.urandom(24)
-DATABASE = os.environ.get('DB_PATH', 'database.db')
+# secret_key 从环境变量读取，容器升级重建后 session 不失效
+app.secret_key = os.environ.get('SECRET_KEY', 'super-secret-starlink-clone-key')
+DATABASE = os.environ.get('DB_PATH', '/app/data/database.db')
 REG_CODE = os.environ.get('REG_CODE', '888888')
 
 def get_db():

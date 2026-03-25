@@ -1,0 +1,22 @@
+# 环境变量（含密钥，不提交）
+.env
+
+# 持久化数据目录（数据库、用户数据）
+data/
+
+# Python 缓存
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+
+# 开发环境
+*.egg-info/
+dist/
+build/
+.venv/
+venv/
+
+# 系统文件
+.DS_Store
