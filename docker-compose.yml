@@ -1,0 +1,12 @@
+version: '3.8'
+
+services:
+  starlink-tvbox:
+    # 因为您使用 1Panel，它可以直接在服务器上帮您一键编译打包，无需借助外部镜像仓库！
+    build: .
+    container_name: starlink-tvbox-api
+    ports:
+      - "8089:8089"
+    volumes:
+      - ./data:/app/data
+    restart: unless-stopped

@@ -1,0 +1,204 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>影视仓接口中心 - 控制台</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+    <style>
+        .dashboard-container { max-width: 1400px; width: 96%; margin: 0 auto; padding: 2rem; }
+        .header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 2rem; }
+        
+        .sub-box {
+            background: rgba(59, 130, 246, 0.1);
+            border: 1px dashed var(--accent);
+            padding: 1.5rem;
+            border-radius: 12px;
+            margin-bottom: 2rem;
+            text-align: center;
+        }
+        .sub-link {
+            display: inline-block;
+            background: rgba(0,0,0,0.5);
+            padding: 10px 15px;
+            border-radius: 6px;
+            color: #60a5fa;
+            font-family: monospace;
+            margin: 10px 0;
+            word-break: break-all;
+        }
+
+        .main-grid { display: grid; grid-template-columns: 1fr 2fr; gap: 2rem; }
+        @media (max-width: 768px) { .main-grid { grid-template-columns: 1fr; } }
+        
+        .source-list { display: flex; flex-direction: column; gap: 1rem; }
+        .source-item {
+            background: rgba(255,255,255,0.03);
+            border: 1px solid var(--border-glass);
+            padding: 1rem;
+            border-radius: 8px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .source-info h4 { margin-bottom: 0.2rem; }
+        .source-info p { color: var(--text-muted); font-size: 0.85rem; font-family: monospace;}
+        .badge {
+            font-size: 0.75rem; padding: 2px 6px; border-radius: 4px;
+            background: rgba(255,255,255,0.1); margin-left: 8px;
+        }
+        .btn-danger { background: rgba(239, 68, 68, 0.2); color: #ef4444; border: 1px solid #ef4444; padding: 6px 12px; font-size: 0.85rem;}
+        .btn-danger:hover { background: #ef4444; color: white; }
+    </style>
+</head>
+<body>
+    <div class="dashboard-container">
+        <div class="header">
+            <h2>欢迎, {{ username }}</h2>
+            <a href="{{ url_for('api_logout') }}" class="btn btn-outline" style="width:auto">登出</a>
+        </div>
+
+        <div class="glass-panel sub-box">
+            <h3>🔗 您的专属 TVBOX 订阅配置链接</h3>
+            <p style="color: var(--text-muted); font-size: 0.9rem; margin-top: 5px;">将此链接复制并填入影视仓/TVBOX的配置接口中</p>
+            <div class="sub-link" id="subLink">{{ sub_url }}</div>
+            <br>
+            <button class="btn btn-primary" style="width:auto" onclick="copyLink()">📋 一键复制链接</button>
+        </div>
+
+        <div class="main-grid">
+            <!-- 添加表单 -->
+            <div class="glass-panel">
+                <h3 style="margin-bottom: 1.5rem">➕ 添加新接口</h3>
+                <form id="addForm">
+                    <div class="form-group">
+                        <label>接口名称</label>
+                        <input type="text" id="name" class="form-control" placeholder="例如：某大厂线路" required>
+                    </div>
+                    <div class="form-group">
+                        <label>接口地址 (URL)</label>
+                        <input type="url" id="url" class="form-control" placeholder="http://..." required>
+                    </div>
+                    <div class="form-group">
+                        <label>接口类型</label>
+                        <select id="type" class="form-control" style="background: #111827">
+                            <option value="site">点播站源 (Site API)</option>
+                            <option value="live">直播频道 (Live URL)</option>
+                        </select>
+                    </div>
+                    <button type="submit" class="btn btn-primary mt-4">立即保存</button>
+                </form>
+            </div>
+
+            <!-- 数据列表 -->
+            <div class="glass-panel">
+                <h3 style="margin-bottom: 1.5rem">📋 我的接口列表</h3>
+                <div class="source-list" id="sourceList">
+                    <p style="color:var(--text-muted)">加载中...</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // 复制链接功能 (兼容非 HTTPS 环境)
+        function copyLink() {
+            const link = document.getElementById('subLink').innerText;
+            
+            // 如果是 HTTPS 环境或者 localhost，直接使用现代 API
+            if (navigator.clipboard && window.isSecureContext) {
+                navigator.clipboard.writeText(link).then(() => {
+                    alert('复制成功！马上前往 TVBOX 填入吧！');
+                }).catch(err => alert('复制失败，请手动选择复制。'));
+            } else {
+                // 如果是直接用 IP 访问的 http 环境（非安全环境），浏览器会禁用 navigator.clipboard
+                // 此时改用传统的原生选择法复制
+                const textArea = document.createElement("textarea");
+                textArea.value = link;
+                textArea.style.position = "fixed";
+                textArea.style.left = "-999999px";
+                textArea.style.top = "-999999px";
+                document.body.appendChild(textArea);
+                textArea.focus();
+                textArea.select();
+                try {
+                    document.execCommand('copy');
+                    alert('🎉 复制成功！马上前往 TVBOX 填入吧！');
+                } catch (err) {
+                    alert('复制失败，请手指长按链接手动复制。');
+                }
+                document.body.removeChild(textArea);
+            }
+        }
+
+        // 加载列表
+        async function loadSources() {
+            const res = await fetch('/api/source/list');
+            const json = await res.json();
+            const container = document.getElementById('sourceList');
+            container.innerHTML = '';
+            
+            if(json.data.length === 0) {
+                container.innerHTML = '<p style="color:var(--text-muted)">暂无数据，请在左侧添加。</p>';
+                return;
+            }
+
+            json.data.forEach(item => {
+                const typeName = item.type === 'site' ? '点播' : '直播';
+                container.innerHTML += `
+                    <div class="source-item">
+                        <div class="source-info">
+                            <h4>${item.name} <span class="badge">${typeName}</span></h4>
+                            <p>${item.url}</p>
+                        </div>
+                        <button class="btn btn-danger" onclick="deleteSource(${item.id})">删除</button>
+                    </div>
+                `;
+            });
+        }
+
+        // 添加数据
+        document.getElementById('addForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const btn = e.target.querySelector('button');
+            btn.disabled = true;
+            
+            const payload = {
+                name: document.getElementById('name').value,
+                url: document.getElementById('url').value,
+                type: document.getElementById('type').value
+            };
+
+            const res = await fetch('/api/source/add', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify(payload)
+            });
+            const data = await res.json();
+            
+            if(data.status === 'success') {
+                e.target.reset();
+                loadSources();
+            } else {
+                alert(data.message);
+            }
+            btn.disabled = false;
+        });
+
+        // 删除数据
+        async function deleteSource(id) {
+            if(!confirm('确定要删除这个接口吗？')) return;
+            const res = await fetch('/api/source/delete', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({id})
+            });
+            const data = await res.json();
+            if(data.status === 'success') loadSources();
+        }
+
+        // 初始化加载
+        loadSources();
+    </script>
+</body>
+</html>
