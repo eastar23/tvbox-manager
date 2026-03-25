@@ -1,18 +1,34 @@
-name: Docker Image CI
+name: Auto Build and Publish to Docker Hub
 
+# 只有当您向 Github 的 main 或 master 分支推送代码时，才会全自动触发这个机器人
 on:
   push:
-    branches: [ "main" ]
-  pull_request:
-    branches: [ "main" ]
+    branches: [ "main", "master" ]
+  # 允许您随时在 GitHub 网页上手动点击运行
+  workflow_dispatch:
 
 jobs:
-
-  build:
-
+  build-and-push-image:
     runs-on: ubuntu-latest
 
     steps:
-    - uses: actions/checkout@v4
-    - name: Build the Docker image
-      run: docker build . --file Dockerfile --tag my-image-name:$(date +%s)
+      # 1. 机器人从仓库把您的代码拉下来
+      - name: Checkout repository
+        uses: actions/checkout@v3
+
+      # 2. 机器人使用您配置的安全密钥自动登录 Docker Hub
+      - name: Log in to Docker Hub
+        uses: docker/login-action@v2
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      # 3. 机器人自动运行 Dockerfile 打包并光速推送到 Docker Hub
+      - name: Build and push Docker image
+        uses: docker/build-push-action@v4
+        with:
+          context: .
+          push: true
+          # 这里的标签会自动读取您的用户名，打上 latest 最新版的标签
+          tags: ${{ secrets.DOCKERHUB_USERNAME }}/starlink-tvbox:latest
+
