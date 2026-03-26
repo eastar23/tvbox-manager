@@ -166,7 +166,8 @@ def api_source_add():
     try:
         # 只针对可能是 JSON 的 URL 进行尝试 (包含 urls 关键字或以 .json 结尾)
         if 'urls' in url or url.endswith('.json'):
-            r = requests.get(url, timeout=5)
+            headers = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'}
+            r = requests.get(url, timeout=10, headers=headers, verify=False)
             if r.status_code == 200:
                 json_data = r.json()
                 if isinstance(json_data, dict) and "urls" in json_data and isinstance(json_data["urls"], list):
