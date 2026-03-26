@@ -7,11 +7,11 @@ services:
     container_name: starlink-tvbox-api
     ports:
       - "8089:8089"
-    # 持久化目录：升级/重建容器后数据不丢失
-    # DATA_DIR 在 .env 中配置，可指定任意宿主机路径
+    # 如果您直接修改本文件，请确保以下参数符合您的实际情况：
+    environment:
+      - REG_CODE=888888          # 用户注册时的邀请码
+      - SECRET_KEY=change_me_now  # Flask Session 密钥，请务必修改
+      - BASE_URL=                 # 外部访问基础 URL，一般留空即可自动识别
     volumes:
-      - ${DATA_DIR:-./data}:/app/data
-    # 从 .env 文件加载环境变量（密钥、邀请码等配置）
-    env_file:
-      - .env
+      - ./data:/app/data         # 冒号左边 ./data 是您服务器上的持久化目录
     restart: unless-stopped
