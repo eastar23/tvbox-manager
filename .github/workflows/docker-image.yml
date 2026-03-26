@@ -4,7 +4,7 @@ name: Auto Build and Publish to Docker Hub
 on:
   push:
     branches: [ "main", "master" ]
-  # 允许您随时在 GitHub 网页上手动点击运行
+    tags: [ "v*" ]  # 当推送以 v 开头的标签（如 v1.0.1）时触发
   workflow_dispatch:
 
 jobs:
@@ -12,23 +12,31 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      # 1. 机器人从仓库把您的代码拉下来
       - name: Checkout repository
         uses: actions/checkout@v3
 
-      # 2. 机器人使用您配置的安全密钥自动登录 Docker Hub
+      # 使用 metadata-action 自动提取版本号
+      - name: Docker metadata
+        id: meta
+        uses: docker/metadata-action@v4
+        with:
+          images: ${{ secrets.DOCKERHUB_USERNAME }}/starlink-tvbox
+          tags: |
+            type=raw,value=latest,enable=${{ github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master' }}
+            type=ref,event=tag
+            type=edge,branch=main
+
       - name: Log in to Docker Hub
         uses: docker/login-action@v2
         with:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
 
-      # 3. 机器人自动运行 Dockerfile 打包并光速推送到 Docker Hub
       - name: Build and push Docker image
         uses: docker/build-push-action@v4
         with:
           context: .
           push: true
-          # 这里的标签会自动读取您的用户名，打上 latest 最新版的标签
-          tags: ${{ secrets.DOCKERHUB_USERNAME }}/starlink-tvbox:latest
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
 
