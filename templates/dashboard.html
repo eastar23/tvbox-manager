@@ -10,70 +10,70 @@
         .header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 2rem; }
         
         .sub-box {
-            background: rgba(59, 130, 246, 0.1);
+            background: rgba(59, 130, 246, 0.05);
             border: 1px dashed var(--accent);
-            padding: 1.5rem;
-            border-radius: 12px;
+            padding: 2rem;
+            border-radius: 16px;
             margin-bottom: 2rem;
             text-align: center;
         }
         .sub-link {
             display: inline-block;
-            background: rgba(0,0,0,0.5);
-            padding: 10px 15px;
-            border-radius: 6px;
+            background: rgba(0,0,0,0.3);
+            padding: 12px 20px;
+            border-radius: 8px;
             color: #60a5fa;
-            font-family: monospace;
-            margin: 10px 0;
+            font-family: 'JetBrains Mono', monospace;
+            margin: 15px 0;
             word-break: break-all;
+            border: 1px solid rgba(96, 165, 250, 0.2);
         }
 
-        .main-grid { display: grid; grid-template-columns: 1fr 2fr; gap: 2rem; }
-        @media (max-width: 768px) { .main-grid { grid-template-columns: 1fr; } }
+        .main-layout { display: flex; flex-direction: column; gap: 2rem; }
+        .add-panel { max-width: 500px; margin: 0 auto; width: 100%; }
         
-        .source-list { display: flex; flex-direction: column; gap: 1rem; }
-        .source-item {
-            background: rgba(255,255,255,0.03);
-            border: 1px solid var(--border-glass);
-            padding: 1rem;
-            border-radius: 8px;
+        .control-bar {
             display: flex;
             justify-content: space-between;
             align-items: center;
+            margin-bottom: 1rem;
         }
-        .source-info h4 { margin-bottom: 0.2rem; }
-        .source-info p { color: var(--text-muted); font-size: 0.85rem; font-family: monospace;}
-        .badge {
-            font-size: 0.75rem; padding: 2px 6px; border-radius: 4px;
-            background: rgba(255,255,255,0.1); margin-left: 8px;
+
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
         }
-        .btn-danger { background: rgba(239, 68, 68, 0.2); color: #ef4444; border: 1px solid #ef4444; padding: 6px 12px; font-size: 0.85rem;}
-        .btn-danger:hover { background: #ef4444; color: white; }
+        .source-card { animation: fadeIn 0.4s ease forwards; }
     </style>
 </head>
 <body>
     <div class="dashboard-container">
         <div class="header">
-            <h2>欢迎, {{ username }}</h2>
-            <a href="{{ url_for('api_logout') }}" class="btn btn-outline" style="width:auto">登出</a>
+            <h2 style="font-weight: 800; letter-spacing: -1px;">🚀 影视仓接口管理</h2>
+            <div style="display: flex; gap: 1rem; align-items: center;">
+                <span style="color: var(--text-muted)">{{ username }}</span>
+                <a href="{{ url_for('api_logout') }}" class="btn action-btn" style="width:auto; padding: 8px 15px">登出</a>
+            </div>
         </div>
 
         <div class="glass-panel sub-box">
-            <h3>🔗 您的专属 TVBOX 订阅配置链接</h3>
-            <p style="color: var(--text-muted); font-size: 0.9rem; margin-top: 5px;">将此链接复制并填入影视仓/TVBOX的配置接口中</p>
+            <h3 style="margin-bottom: 0.5rem">🔗 我的专属订阅链接</h3>
+            <p style="color: var(--text-muted); font-size: 0.9rem;">将此链接填入 TVBOX/影视仓 的配置地址中即可使用</p>
             <div class="sub-link" id="subLink">{{ sub_url }}</div>
-            <br>
-            <button class="btn btn-primary" style="width:auto" onclick="copyLink()">📋 一键复制链接</button>
+            <div style="display: flex; justify-content: center; gap: 1rem; margin-top: 10px;">
+                <button class="btn btn-primary" style="width:auto" onclick="copyLink()">📋 复制链接</button>
+                <button class="btn action-btn" style="width:auto" onclick="openPreview()">👁️ 预览 JSON</button>
+            </div>
         </div>
 
-        <div class="main-grid">
-            <!-- 添加表单 -->
-            <div class="glass-panel">
-                <h3 style="margin-bottom: 1.5rem">➕ 添加新接口</h3>
+        <div class="main-layout">
+            <div class="glass-panel add-panel">
+                <h3 style="margin-bottom: 1.5rem; text-align: center;">➕ 添加新接口</h3>
                 <form id="addForm">
+                    <input type="hidden" id="sourceId">
                     <div class="form-group">
                         <label>接口名称</label>
-                        <input type="text" id="name" class="form-control" placeholder="例如：某大厂线路" required>
+                        <input type="text" id="name" class="form-control" placeholder="例如：阿里专线 / 直播源 A" required>
                     </div>
                     <div class="form-group">
                         <label>接口地址 (URL)</label>
@@ -86,90 +86,191 @@
                             <option value="live">直播频道 (Live URL)</option>
                         </select>
                     </div>
-                    <button type="submit" class="btn btn-primary mt-4">立即保存</button>
+                    <button type="submit" id="submitBtn" class="btn btn-primary mt-4">立即保存接口</button>
+                    <button type="button" id="cancelEdit" class="btn action-btn mt-2" style="display:none" onclick="resetForm()">取消编辑</button>
                 </form>
             </div>
 
-            <!-- 数据列表 -->
-            <div class="glass-panel">
-                <h3 style="margin-bottom: 1.5rem">📋 我的接口列表</h3>
-                <div class="source-list" id="sourceList">
-                    <p style="color:var(--text-muted)">加载中...</p>
+            <div>
+                <div class="control-bar">
+                    <h3>📋 我的接口列表 (<span id="sourceCount">0</span>)</h3>
+                    <button class="action-btn" onclick="loadSources()">🔄 刷新列表</button>
                 </div>
+                <div class="source-grid" id="sourceList"></div>
+            </div>
+        </div>
+    </div>
+
+    <div class="modal-overlay" id="previewModal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3>JSON 配置预览</h3>
+                <button class="close-modal" onclick="closeModal()">×</button>
+            </div>
+            <div class="tabs">
+                <div class="tab active" data-type="multi" onclick="switchTab('multi', this)">多仓格式 (Default)</div>
+                <div class="tab" data-type="single" onclick="switchTab('single', this)">单仓格式 (Legacy)</div>
+            </div>
+            <pre id="jsonPreview">加载中...</pre>
+            <div style="margin-top: 1.5rem; display: flex; justify-content: flex-end; gap: 1rem;">
+                <button class="btn action-btn" style="width:auto" onclick="copySubLinkWithParams()">📋 复制该模式链接</button>
+                <button class="btn btn-primary" style="width:auto" onclick="copyPreview()">📋 复制预览内容</button>
             </div>
         </div>
     </div>
 
     <script>
-        // 复制链接功能 (兼容非 HTTPS 环境)
-        function copyLink() {
-            const link = document.getElementById('subLink').innerText;
-            
-            // 如果是 HTTPS 环境或者 localhost，直接使用现代 API
+        let currentTab = 'multi';
+        const subBaseUrl = "{{ sub_url }}";
+
+        function copyText(text) {
             if (navigator.clipboard && window.isSecureContext) {
-                navigator.clipboard.writeText(link).then(() => {
-                    alert('复制成功！马上前往 TVBOX 填入吧！');
-                }).catch(err => alert('复制失败，请手动选择复制。'));
+                return navigator.clipboard.writeText(text);
             } else {
-                // 如果是直接用 IP 访问的 http 环境（非安全环境），浏览器会禁用 navigator.clipboard
-                // 此时改用传统的原生选择法复制
                 const textArea = document.createElement("textarea");
-                textArea.value = link;
+                textArea.value = text;
                 textArea.style.position = "fixed";
-                textArea.style.left = "-999999px";
-                textArea.style.top = "-999999px";
+                textArea.style.left = "-9999px";
                 document.body.appendChild(textArea);
                 textArea.focus();
                 textArea.select();
                 try {
                     document.execCommand('copy');
-                    alert('🎉 复制成功！马上前往 TVBOX 填入吧！');
-                } catch (err) {
-                    alert('复制失败，请手指长按链接手动复制。');
-                }
+                } catch (err) {}
                 document.body.removeChild(textArea);
+                return Promise.resolve();
             }
         }
 
-        // 加载列表
+        function copyLink() {
+            copyText(document.getElementById('subLink').innerText).then(() => alert('✅ 订阅链接已复制'));
+        }
+
+        function copyPreview() {
+            copyText(document.getElementById('jsonPreview').innerText).then(() => alert('✅ JSON 内容已复制'));
+        }
+
+        function copySubLinkWithParams() {
+            const url = `${subBaseUrl}?type=${currentTab}`;
+            copyText(url).then(() => alert(`✅ ${currentTab === 'multi' ? '多仓' : '单仓'}订阅链接已复制`));
+        }
+
+        function openPreview() {
+            document.getElementById('previewModal').style.display = 'flex';
+            fetchPreview();
+        }
+
+        function closeModal() {
+            document.getElementById('previewModal').style.display = 'none';
+        }
+
+        function switchTab(type, el) {
+            currentTab = type;
+            document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+            el.classList.add('active');
+            fetchPreview();
+        }
+
+        async function fetchPreview() {
+            const previewEl = document.getElementById('jsonPreview');
+            previewEl.innerText = '// 正在生成预览...';
+            const res = await fetch(`/api/subscribe/{{ username }}.json?type=${currentTab}`);
+            const text = await res.text();
+            previewEl.innerText = text;
+        }
+
         async function loadSources() {
+            const container = document.getElementById('sourceList');
+            container.innerHTML = '<p style="color:var(--text-muted)">正在同步数据...</p>';
+            
             const res = await fetch('/api/source/list');
             const json = await res.json();
-            const container = document.getElementById('sourceList');
             container.innerHTML = '';
+            document.getElementById('sourceCount').innerText = json.data.length;
             
             if(json.data.length === 0) {
-                container.innerHTML = '<p style="color:var(--text-muted)">暂无数据，请在左侧添加。</p>';
+                container.innerHTML = '<div style="grid-column: 1/-1; text-align: center; padding: 3rem; color: var(--text-muted)">暂无接口，快去上方添加一个吧！</div>';
                 return;
             }
 
             json.data.forEach(item => {
+                const typeClass = item.type === 'site' ? 'site' : 'live';
                 const typeName = item.type === 'site' ? '点播' : '直播';
-                container.innerHTML += `
-                    <div class="source-item">
-                        <div class="source-info">
-                            <h4>${item.name} <span class="badge">${typeName}</span></h4>
-                            <p>${item.url}</p>
+                
+                const card = document.createElement('div');
+                card.className = `source-card ${typeClass}`;
+                card.innerHTML = `
+                    <div class="source-header">
+                        <div class="source-title">${item.name}</div>
+                        <span class="status-badge status-checking" id="status-${item.id}">检查中...</span>
+                    </div>
+                    <div class="source-url">${item.url}</div>
+                    <div class="source-footer">
+                        <span class="status-badge">${typeName}</span>
+                        <div class="card-actions">
+                            <button class="action-btn" onclick='editSource(${JSON.stringify(item)})' title="编辑">✏️</button>
+                            <button class="action-btn" onclick="copyText('${item.url}').then(()=>alert('链接已复制'))" title="复制链接">📋</button>
+                            <button class="action-btn delete" onclick="deleteSource(${item.id})" title="删除">🗑️</button>
                         </div>
-                        <button class="btn btn-danger" onclick="deleteSource(${item.id})">删除</button>
                     </div>
                 `;
+                container.appendChild(card);
+                checkStatus(item.id, item.url);
             });
         }
 
-        // 添加数据
+        async function checkStatus(id, url) {
+            const el = document.getElementById(`status-${id}`);
+            try {
+                const res = await fetch('/api/source/check', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({url})
+                });
+                const data = await res.json();
+                if(data.status === 'success') {
+                    el.innerText = '在线';
+                    el.className = 'status-badge status-online';
+                } else {
+                    el.innerText = '异常';
+                    el.className = 'status-badge status-offline';
+                }
+            } catch (e) {
+                el.innerText = '超时';
+                el.className = 'status-badge status-offline';
+            }
+        }
+
+        function editSource(item) {
+            document.getElementById('sourceId').value = item.id;
+            document.getElementById('name').value = item.name;
+            document.getElementById('url').value = item.url;
+            document.getElementById('type').value = item.type;
+            document.getElementById('submitBtn').innerText = '保存修改';
+            document.getElementById('cancelEdit').style.display = 'block';
+            window.scrollTo({ top: 0, behavior: 'smooth' });
+        }
+
+        function resetForm() {
+            document.getElementById('addForm').reset();
+            document.getElementById('sourceId').value = '';
+            document.getElementById('submitBtn').innerText = '立即保存接口';
+            document.getElementById('cancelEdit').style.display = 'none';
+        }
+
         document.getElementById('addForm').addEventListener('submit', async (e) => {
             e.preventDefault();
-            const btn = e.target.querySelector('button');
-            btn.disabled = true;
+            const id = document.getElementById('sourceId').value;
+            const endpoint = id ? '/api/source/update' : '/api/source/add';
             
             const payload = {
                 name: document.getElementById('name').value,
                 url: document.getElementById('url').value,
                 type: document.getElementById('type').value
             };
+            if(id) payload.id = id;
 
-            const res = await fetch('/api/source/add', {
+            const res = await fetch(endpoint, {
                 method: 'POST',
                 headers: {'Content-Type': 'application/json'},
                 body: JSON.stringify(payload)
@@ -177,17 +278,15 @@
             const data = await res.json();
             
             if(data.status === 'success') {
-                e.target.reset();
+                resetForm();
                 loadSources();
             } else {
                 alert(data.message);
             }
-            btn.disabled = false;
         });
 
-        // 删除数据
         async function deleteSource(id) {
-            if(!confirm('确定要删除这个接口吗？')) return;
+            if(!confirm('确定要移除此接口吗？')) return;
             const res = await fetch('/api/source/delete', {
                 method: 'POST',
                 headers: {'Content-Type': 'application/json'},
@@ -197,7 +296,6 @@
             if(data.status === 'success') loadSources();
         }
 
-        // 初始化加载
         loadSources();
     </script>
 </body>

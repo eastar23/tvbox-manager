@@ -4,6 +4,7 @@ from flask import Flask, request, session, redirect, url_for, render_template, j
 from werkzeug.security import generate_password_hash, check_password_hash
 from functools import wraps
 import json
+import requests
 
 app = Flask(__name__)
 # secret_key 从环境变量读取，容器升级重建后 session 不失效
@@ -158,13 +159,51 @@ def api_source_delete():
         db.commit()
     return jsonify({'status': 'success', 'message': '删除成功'})
 
+@app.route('/api/source/update', methods=['POST'])
+@login_required
+def api_source_update():
+    user_id = session['user_id']
+    data = request.json
+    source_id = data.get('id')
+    name = data.get('name', '').strip()
+    url = data.get('url', '').strip()
+    stype = data.get('type', 'site').strip()
+    
+    if not source_id or not name or not url:
+        return jsonify({'status': 'error', 'message': '名称和URL不能为空'})
+
+    with get_db() as db:
+        db.execute('UPDATE sources SET name = ?, url = ?, type = ? WHERE id = ? AND user_id = ?', 
+                   (name, url, stype, source_id, user_id))
+        db.commit()
+    return jsonify({'status': 'success', 'message': '保存成功'})
+
+@app.route('/api/source/check', methods=['POST'])
+@login_required
+def api_source_check():
+    url = request.json.get('url')
+    if not url:
+        return jsonify({'status': 'error', 'message': 'URL missing'})
+    try:
+        # 只取头信息或者前几个字节，避免下载大文件
+        r = requests.get(url, timeout=5, stream=True)
+        r.close() # 立即关闭连接
+        if r.status_code < 400:
+            return jsonify({'status': 'success', 'code': r.status_code})
+        else:
+            return jsonify({'status': 'error', 'code': r.status_code})
+    except Exception as e:
+        return jsonify({'status': 'error', 'message': str(e)})
+
 # --- The Core TVBOX JSON Generation API ---
 @app.route('/api/subscribe/<username>.json')
 def get_tvbox_json(username):
     """
     Generate TVBox standard JSON configuration based on the user's saved sources.
-    This URL acts as the subscription link.
+    Supports ?type=single or ?type=multi (default)
     """
+    export_type = request.args.get('type', 'multi')
+    
     with get_db() as db:
         user = db.execute('SELECT id FROM users WHERE username = ?', (username,)).fetchone()
         if not user:
@@ -172,22 +211,44 @@ def get_tvbox_json(username):
             
         sources = db.execute('SELECT * FROM sources WHERE user_id = ?', (user['id'],)).fetchall()
     
-    # Construct Multi-repo TVBox JSON Structure (多仓格式)
-    tvbox_config = {
-        "urls": []
-    }
-    
-    for row in sources:
-        tvbox_config["urls"].append({
-            "url": row['url'],
-            "name": row['name']
-        })
+    if export_type == 'single':
+        # Single Repo Format ( sites, lives, etc)
+        tvbox_config = {
+            "sites": [],
+            "lives": [{"name": "live", "type": 0, "url": "", "playerType": 1, "ua": "", "epg": "", "logo": ""}]
+        }
+        live_urls = []
+        for row in sources:
+            if row['type'] == 'site':
+                tvbox_config["sites"].append({
+                    "key": f"site_{row['id']}",
+                    "name": row['name'],
+                    "type": 3,
+                    "api": "csp_XBPQ",
+                    "searchable": 1,
+                    "quickSearch": 1,
+                    "filterable": 1,
+                    "ext": row['url']
+                })
+            else:
+                live_urls.append(f"{row['name']}, {row['url']}")
+        
+        if live_urls:
+            tvbox_config["lives"][0]["url"] = "#".join(live_urls)
             
-    # Return as JSON with ensuring no unicode escapes (ensure_ascii=False)
+    else:
+        # Multi-repo TVBox JSON Structure (多仓格式)
+        tvbox_config = {
+            "urls": []
+        }
+        for row in sources:
+            tvbox_config["urls"].append({
+                "url": row['url'],
+                "name": row['name']
+            })
+            
     json_str = json.dumps(tvbox_config, indent=4, ensure_ascii=False)
-    
-    # Optional header comment to match starlink.uno format
-    final_output = "//影视仓专属多仓配置源\n" + json_str
+    final_output = "//影视仓专属配置源 - " + ("多仓模式" if export_type == 'multi' else "单仓模式") + "\n" + json_str
     
     response = Response(final_output, mimetype='application/json; charset=utf-8')
     response.headers.add('Access-Control-Allow-Origin', '*')
