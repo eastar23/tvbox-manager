@@ -43,9 +43,17 @@
 | 变量名 | 说明 | 默认值 |
 | :--- | :--- | :--- |
 | `REG_CODE` | 注册账号所需的邀请码 | `888888` |
-| `DATA_DIR` | 宿主机数据持久化路径 (仅在 .env/yml 中使用) | `./data` |
 | `SECRET_KEY` | Flask Session 加密密钥 | `super-secret...` |
 | `BASE_URL` | 外部访问的基础地址（如 https://tv.abc.com） | 自动识别 |
+
+## 🆙 如何更新
+
+1. **进入部署目录：** `cd tvbox`
+2. **拉取最新镜像：** `docker-compose pull`
+3. **重新部署：** `docker-compose up -d`
+4. **清理旧文件：** `docker image prune -f` (可选)
+
+由于我们已将数据挂载到 `./data` 目录，更新过程**不会丢失任何数据**。
 
 ## 🛠️ 关于反馈
 如果您在使用过程中发现生成的订阅链接无法下载，请检查您的反向代理配置，或手动设置 `BASE_URL`。
