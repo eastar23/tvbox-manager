@@ -1,3 +1,5 @@
+# TVBox 接口管理中心 (v1.0.1)
+
 将 TVBox 接口（单仓/多仓）聚合为规范的 JSON 文件，并生成订阅链接，适配 TVBox, 影视仓，OK影视等。
 
 ## 🚀 快速部署 (Docker Compose)
