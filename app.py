@@ -159,21 +159,38 @@ def api_source_add():
                 json_data = r.json()
                 if isinstance(json_data, dict) and "urls" in json_data and isinstance(json_data["urls"], list):
                     added_count = 0
+                    skip_count = 0
                     with get_db() as db:
+                        # 获取用户现有的所有 URL 用于查重
+                        existing_urls = {row['url'] for row in db.execute('SELECT url FROM sources WHERE user_id = ?', (user_id,)).fetchall()}
+                        
                         for entry in json_data["urls"]:
                             e_name = entry.get('name', '未命名').strip()
                             e_url = entry.get('url', '').strip()
                             if e_url:
+                                if e_url in existing_urls:
+                                    skip_count += 1
+                                    continue
                                 db.execute('INSERT INTO sources (user_id, name, url, type) VALUES (?, ?, ?, ?)', 
                                            (user_id, e_name, e_url, stype))
+                                existing_urls.add(e_url)
                                 added_count += 1
                         db.commit()
-                    return jsonify({'status': 'success', 'message': f'检测到聚合接口，已分解并导入 {added_count} 个子接口！'})
+                    
+                    msg = f'检测到聚合接口，成功解析并导入 {added_count} 个接口！'
+                    if skip_count > 0:
+                        msg += f'（跳过 {skip_count} 个重复项）'
+                    return jsonify({'status': 'success', 'message': msg})
     except Exception:
         # 解析失败或不是 JSON，退回到单个普通接口添加模式
         pass
 
     with get_db() as db:
+        # 单个添加模式下也进行查重
+        exists = db.execute('SELECT id FROM sources WHERE user_id = ? AND url = ?', (user_id, url)).fetchone()
+        if exists:
+            return jsonify({'status': 'error', 'message': '该接口已在您的列表中，请勿重复添加'})
+            
         db.execute('INSERT INTO sources (user_id, name, url, type) VALUES (?, ?, ?, ?)', 
                    (user_id, name, url, stype))
         db.commit()
