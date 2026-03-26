@@ -150,6 +150,29 @@ def api_source_add():
     if not name or not url:
         return jsonify({'status': 'error', 'message': '名称和URL不能为空'})
 
+    # 尝试自动解析多仓 JSON (Deconstruct Multi-Repo)
+    try:
+        # 只针对可能是 JSON 的 URL 进行尝试 (包含 urls 关键字或以 .json 结尾)
+        if 'urls' in url or url.endswith('.json'):
+            r = requests.get(url, timeout=5)
+            if r.status_code == 200:
+                json_data = r.json()
+                if isinstance(json_data, dict) and "urls" in json_data and isinstance(json_data["urls"], list):
+                    added_count = 0
+                    with get_db() as db:
+                        for entry in json_data["urls"]:
+                            e_name = entry.get('name', '未命名').strip()
+                            e_url = entry.get('url', '').strip()
+                            if e_url:
+                                db.execute('INSERT INTO sources (user_id, name, url, type) VALUES (?, ?, ?, ?)', 
+                                           (user_id, e_name, e_url, stype))
+                                added_count += 1
+                        db.commit()
+                    return jsonify({'status': 'success', 'message': f'检测到聚合接口，已分解并导入 {added_count} 个子接口！'})
+    except Exception:
+        # 解析失败或不是 JSON，退回到单个普通接口添加模式
+        pass
+
     with get_db() as db:
         db.execute('INSERT INTO sources (user_id, name, url, type) VALUES (?, ?, ?, ?)', 
                    (user_id, name, url, stype))
