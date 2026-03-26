@@ -14,7 +14,7 @@
    version: '3.8'
    services:
      tvbox-manager:
-       image: ${{ secrets.DOCKERHUB_USERNAME }}/starlink-tvbox:latest
+       image: eastar23/starlink-tvbox:latest
        container_name: tvbox-manager
        ports:
          - "8089:8089"
