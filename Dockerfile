@@ -23,5 +23,9 @@ RUN mkdir -p /app/data
 # 暴露 Flask 运行的 8089 端口
 EXPOSE 8089
 
+# 指定持久化卷，方便 NAS/GUI 工具（如群晖、1Panel 等）自动识别并填入 “/app/data”
+# 这样用户在部署时，只需要点击选择自己的本地路径即可，装载路径会自动填好
+VOLUME ["/app/data"]
+
 # 运行应用
 CMD ["python", "app.py"]
