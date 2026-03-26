@@ -279,3 +279,14 @@ pre#jsonPreview {
     background: var(--accent);
     color: white;
 }
+
+/* Version Badge */
+.version-tag {
+    background: rgba(59, 130, 246, 0.1);
+    color: var(--accent);
+    padding: 2px 8px;
+    border-radius: 4px;
+    font-size: 0.75rem;
+    font-weight: 600;
+    border: 1px solid rgba(59, 130, 246, 0.2);
+}

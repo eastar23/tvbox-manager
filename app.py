@@ -14,13 +14,19 @@ app.wsgi_app = ProxyFix(app.wsgi_app, x_for=1, x_proto=1, x_host=1, x_port=1, x_
 # secret_key 从环境变量读取，容器升级重建后 session 不失效
 app.secret_key = os.environ.get('SECRET_KEY', 'super-secret-starlink-clone-key')
 DATABASE = os.environ.get('DB_PATH', '/app/data/database.db')
+# 基础配置
 REG_CODE = os.environ.get('REG_CODE', '888888')
 BASE_URL = os.environ.get('BASE_URL', '').rstrip('/')
+APP_VERSION = "v1.0.1"  # 当前软件版本号
 
 def get_db():
     conn = sqlite3.connect(DATABASE)
     conn.row_factory = sqlite3.Row
     return conn
+
+@app.context_processor
+def inject_version():
+    return dict(version=APP_VERSION)
 
 def init_db():
     with get_db() as db:

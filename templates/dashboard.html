@@ -51,6 +51,7 @@
         <div class="header">
             <h2 style="font-weight: 800; letter-spacing: -1px;">🚀 影视仓接口管理</h2>
             <div style="display: flex; gap: 1rem; align-items: center;">
+                <span class="version-tag">{{ version }}</span>
                 <span style="color: var(--text-muted)">{{ username }}</span>
                 <a href="{{ url_for('api_logout') }}" class="btn action-btn" style="width:auto; padding: 8px 15px">登出</a>
             </div>
