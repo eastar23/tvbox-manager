@@ -39,10 +39,16 @@ def init_db():
                 name TEXT NOT NULL,
                 url TEXT NOT NULL,
                 type TEXT DEFAULT 'site',
+                status TEXT DEFAULT 'unknown',
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                 FOREIGN KEY (user_id) REFERENCES users (id)
             )
         ''')
+        # 兼容旧数据库：尝试增加 status 列
+        try:
+            db.execute('ALTER TABLE sources ADD COLUMN status TEXT DEFAULT "unknown"')
+        except sqlite3.OperationalError:
+            pass
         db.commit()
 
 # Ensure DB is initialized before first request
@@ -171,8 +177,8 @@ def api_source_add():
                                 if e_url in existing_urls:
                                     skip_count += 1
                                     continue
-                                db.execute('INSERT INTO sources (user_id, name, url, type) VALUES (?, ?, ?, ?)', 
-                                           (user_id, e_name, e_url, stype))
+                                db.execute('INSERT INTO sources (user_id, name, url, type, status) VALUES (?, ?, ?, ?, ?)', 
+                                           (user_id, e_name, e_url, stype, 'unknown'))
                                 existing_urls.add(e_url)
                                 added_count += 1
                         db.commit()
@@ -191,8 +197,8 @@ def api_source_add():
         if exists:
             return jsonify({'status': 'error', 'message': '该接口已在您的列表中，请勿重复添加'})
             
-        db.execute('INSERT INTO sources (user_id, name, url, type) VALUES (?, ?, ?, ?)', 
-                   (user_id, name, url, stype))
+        db.execute('INSERT INTO sources (user_id, name, url, type, status) VALUES (?, ?, ?, ?, ?)', 
+                   (user_id, name, url, stype, 'unknown'))
         db.commit()
     return jsonify({'status': 'success', 'message': '添加成功'})
 
@@ -229,17 +235,31 @@ def api_source_update():
 @login_required
 def api_source_check():
     url = request.json.get('url')
+    source_id = request.json.get('id')
     if not url:
         return jsonify({'status': 'error', 'message': 'URL missing'})
+    
     try:
         # 只取头信息或者前几个字节，避免下载大文件
         r = requests.get(url, timeout=5, stream=True)
-        r.close() # 立即关闭连接
-        if r.status_code < 400:
-            return jsonify({'status': 'success', 'code': r.status_code})
-        else:
-            return jsonify({'status': 'error', 'code': r.status_code})
+        r.close()
+        
+        status = 'online' if r.status_code < 400 else 'offline'
+        
+        # 如果提供了 ID，则更新数据库中的状态
+        if source_id:
+            with get_db() as db:
+                db.execute('UPDATE sources SET status = ? WHERE id = ? AND user_id = ?', 
+                           (status, source_id, session['user_id']))
+                db.commit()
+                
+        return jsonify({'status': 'success' if status == 'online' else 'error', 'code': r.status_code})
     except Exception as e:
+        if source_id:
+            with get_db() as db:
+                db.execute('UPDATE sources SET status = ? WHERE id = ? AND user_id = ?', 
+                           ('offline', source_id, session['user_id']))
+                db.commit()
         return jsonify({'status': 'error', 'message': str(e)})
 
 # --- The Core TVBOX JSON Generation API ---
@@ -250,13 +270,19 @@ def get_tvbox_json(username):
     Supports ?type=single or ?type=multi (default)
     """
     export_type = request.args.get('type', 'multi')
+    only_online = request.args.get('only_online') == 'true'
     
     with get_db() as db:
         user = db.execute('SELECT id FROM users WHERE username = ?', (username,)).fetchone()
         if not user:
             return jsonify({'error': '用户不存在'}), 404
             
-        sources = db.execute('SELECT * FROM sources WHERE user_id = ?', (user['id'],)).fetchall()
+        query = 'SELECT * FROM sources WHERE user_id = ?'
+        params = [user['id']]
+        if only_online:
+            query += ' AND status = "online"'
+            
+        sources = db.execute(query, params).fetchall()
     
     if export_type == 'single':
         # Single Repo Format ( sites, lives, etc)

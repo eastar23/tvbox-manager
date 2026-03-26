@@ -60,7 +60,11 @@
             <h3 style="margin-bottom: 0.5rem">🔗 我的专属订阅链接</h3>
             <p style="color: var(--text-muted); font-size: 0.9rem;">将此链接填入 TVBOX/影视仓 的配置地址中即可使用</p>
             <div class="sub-link" id="subLink">{{ sub_url }}</div>
-            <div style="display: flex; justify-content: center; gap: 1rem; margin-top: 10px;">
+            <div style="display: flex; align-items: center; justify-content: center; gap: 0.5rem; margin-top: 5px; margin-bottom: 15px;">
+                <input type="checkbox" id="onlyOnline" onchange="updateSubUrl()" style="width: 16px; height: 16px; cursor: pointer;">
+                <label for="onlyOnline" style="font-size: 0.85rem; color: var(--text-muted); cursor: pointer; user-select: none;">仅导出在线接口 (自动过滤异常源)</label>
+            </div>
+            <div style="display: flex; justify-content: center; gap: 1rem;">
                 <button class="btn btn-primary" style="width:auto" onclick="copyLink()">📋 复制链接</button>
                 <button class="btn action-btn" style="width:auto" onclick="openPreview()">👁️ 预览 JSON</button>
             </div>
@@ -146,12 +150,24 @@
             copyText(document.getElementById('subLink').innerText).then(() => alert('✅ 订阅链接已复制'));
         }
 
+        function updateSubUrl() {
+            const onlyOnline = document.getElementById('onlyOnline').checked;
+            const subLinkEl = document.getElementById('subLink');
+            if (onlyOnline) {
+                subLinkEl.innerText = subBaseUrl.includes('?') ? `${subBaseUrl}&only_online=true` : `${subBaseUrl}?only_online=true`;
+            } else {
+                subLinkEl.innerText = subBaseUrl;
+            }
+        }
+
         function copyPreview() {
             copyText(document.getElementById('jsonPreview').innerText).then(() => alert('✅ JSON 内容已复制'));
         }
 
         function copySubLinkWithParams() {
-            const url = `${subBaseUrl}?type=${currentTab}`;
+            const onlyOnline = document.getElementById('onlyOnline').checked;
+            let url = `${subBaseUrl}${subBaseUrl.includes('?') ? '&' : '?'}type=${currentTab}`;
+            if (onlyOnline) url += '&only_online=true';
             copyText(url).then(() => alert(`✅ ${currentTab === 'multi' ? '多仓' : '单仓'}订阅链接已复制`));
         }
 
@@ -174,7 +190,11 @@
         async function fetchPreview() {
             const previewEl = document.getElementById('jsonPreview');
             previewEl.innerText = '// 正在生成预览...';
-            const res = await fetch(`/api/subscribe/{{ username }}.json?type=${currentTab}`);
+            const onlyOnline = document.getElementById('onlyOnline').checked;
+            let url = `/api/subscribe/{{ username }}.json?type=${currentTab}`;
+            if (onlyOnline) url += '&only_online=true';
+            
+            const res = await fetch(url);
             const text = await res.text();
             previewEl.innerText = text;
         }
@@ -225,7 +245,7 @@
                 const res = await fetch('/api/source/check', {
                     method: 'POST',
                     headers: {'Content-Type': 'application/json'},
-                    body: JSON.stringify({url})
+                    body: JSON.stringify({url, id})
                 });
                 const data = await res.json();
                 if(data.status === 'success') {
