@@ -9,6 +9,10 @@ ENV PYTHONDONTWRITEBYTECODE=1
 ENV PYTHONUNBUFFERED=1
 # 指定数据库文件存储在 /app/data 目录中，方便使用 Volume 挂载持久化
 ENV DB_PATH=/app/data/database.db
+# 注册邀请码，默认 888888，用户在部署时可自行修改
+ENV REG_CODE=888888
+# Flask Session 密钥，建议部署时修改
+ENV SECRET_KEY=super-secret-starlink-key
 
 # 复制依赖清单并安装
 COPY requirements.txt .
