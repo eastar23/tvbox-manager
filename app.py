@@ -169,33 +169,50 @@ def api_source_add():
             headers = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'}
             r = requests.get(url, timeout=10, headers=headers, verify=False)
             if r.status_code == 200:
-                json_data = r.json()
-                if isinstance(json_data, dict) and "urls" in json_data and isinstance(json_data["urls"], list):
-                    added_count = 0
-                    skip_count = 0
-                    with get_db() as db:
-                        # 获取用户现有的所有 URL 用于查重
-                        existing_urls = {row['url'] for row in db.execute('SELECT url FROM sources WHERE user_id = ?', (user_id,)).fetchall()}
+                content = r.text.strip()
+                # 兼容性处理：剔除可能存在的非标准注释 (某些源以 // 开头)
+                if content.startswith('//'):
+                    lines = content.split('\n')
+                    cleaned_lines = []
+                    for line in lines:
+                        stripped = line.strip()
+                        if not stripped.startswith('//'):
+                            cleaned_lines.append(line)
+                    content = '\n'.join(cleaned_lines)
+
+                try:
+                    json_data = json.loads(content)
+                    if isinstance(json_data, dict) and "urls" in json_data and isinstance(json_data["urls"], list):
+                        added_count = 0
+                        skip_count = 0
+                        with get_db() as db:
+                            # 获取用户现有的所有 URL 用于查重
+                            existing_urls = {row['url'] for row in db.execute('SELECT url FROM sources WHERE user_id = ?', (user_id,)).fetchall()}
+                            
+                            for entry in json_data["urls"]:
+                                e_name = entry.get('name', '未命名').strip()
+                                e_url = entry.get('url', '').strip()
+                                if e_url:
+                                    if e_url in existing_urls:
+                                        skip_count += 1
+                                        continue
+                                    db.execute('INSERT INTO sources (user_id, name, url, type, status) VALUES (?, ?, ?, ?, ?)', 
+                                               (user_id, e_name, e_url, stype, 'unknown'))
+                                    existing_urls.add(e_url)
+                                    added_count += 1
+                            db.commit()
                         
-                        for entry in json_data["urls"]:
-                            e_name = entry.get('name', '未命名').strip()
-                            e_url = entry.get('url', '').strip()
-                            if e_url:
-                                if e_url in existing_urls:
-                                    skip_count += 1
-                                    continue
-                                db.execute('INSERT INTO sources (user_id, name, url, type, status) VALUES (?, ?, ?, ?, ?)', 
-                                           (user_id, e_name, e_url, stype, 'unknown'))
-                                existing_urls.add(e_url)
-                                added_count += 1
-                        db.commit()
-                    
-                    msg = f'检测到聚合接口，成功解析并导入 {added_count} 个接口！'
-                    if skip_count > 0:
-                        msg += f'（跳过 {skip_count} 个重复项）'
-                    return jsonify({'status': 'success', 'message': msg})
-    except Exception:
-        # 解析失败或不是 JSON，退回到单个普通接口添加模式
+                        msg = f'检测到聚合接口，成功解析并导入 {added_count} 个接口！'
+                        if skip_count > 0:
+                            msg += f'（跳过 {skip_count} 个重复项）'
+                        return jsonify({'status': 'success', 'message': msg})
+                except Exception as e:
+                    # JSON 解析失败，跳过并进入单接口模式
+                    print(f"JSON Parse Error: {e}")
+                    pass
+    except Exception as e:
+        # 网络请求或其他错误
+        print(f"Request Error: {e}")
         pass
 
     with get_db() as db:
