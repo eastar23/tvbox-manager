@@ -5,12 +5,17 @@ from werkzeug.security import generate_password_hash, check_password_hash
 from functools import wraps
 import json
 import requests
+from werkzeug.middleware.proxy_fix import ProxyFix
 
 app = Flask(__name__)
+# 适配反向代理，处理 X-Forwarded-Proto 等头部
+app.wsgi_app = ProxyFix(app.wsgi_app, x_for=1, x_proto=1, x_host=1, x_port=1, x_prefix=1)
+
 # secret_key 从环境变量读取，容器升级重建后 session 不失效
 app.secret_key = os.environ.get('SECRET_KEY', 'super-secret-starlink-clone-key')
 DATABASE = os.environ.get('DB_PATH', '/app/data/database.db')
 REG_CODE = os.environ.get('REG_CODE', '888888')
+BASE_URL = os.environ.get('BASE_URL', '').rstrip('/')
 
 def get_db():
     conn = sqlite3.connect(DATABASE)
@@ -75,7 +80,9 @@ def register():
 @login_required
 def dashboard():
     username = session.get('username')
-    sub_url = request.host_url.rstrip('/') + url_for('get_tvbox_json', username=username)
+    # If BASE_URL is set, use it; otherwise fallback to request.host_url
+    host_url = BASE_URL if BASE_URL else request.host_url.rstrip('/')
+    sub_url = host_url + url_for('get_tvbox_json', username=username)
     return render_template('dashboard.html', username=username, sub_url=sub_url)
 
 # --- API Routes ---
@@ -248,7 +255,12 @@ def get_tvbox_json(username):
             })
             
     json_str = json.dumps(tvbox_config, indent=4, ensure_ascii=False)
-    final_output = "//影视仓专属配置源 - " + ("多仓模式" if export_type == 'multi' else "单仓模式") + "\n" + json_str
+    
+    # Check if user explicitly wants the comment (older apps might need it for some reason)
+    if request.args.get('comment') == 'true':
+        final_output = "//影视仓专属配置源 - " + ("多仓模式" if export_type == 'multi' else "单仓模式") + "\n" + json_str
+    else:
+        final_output = json_str
     
     response = Response(final_output, mimetype='application/json; charset=utf-8')
     response.headers.add('Access-Control-Allow-Origin', '*')
