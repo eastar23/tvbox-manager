@@ -14,7 +14,7 @@
    version: '3.8'
    services:
      tvbox-manager:
-       image: eastar23/starlink-tvbox:latest
+       image: eastar23/tvbox-manager:latest
        container_name: tvbox-manager
        ports:
          - "8089:8089"
