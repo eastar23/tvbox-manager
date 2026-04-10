@@ -495,8 +495,8 @@ def api_external_aipan():
 
     # 2. 从爱盼拉取的数据作为底部补充
     try:
-        headers = {'User-Agent': 'Mozilla/5.0'}
-        r = requests.get('https://www.aipan.me/api/tvbox', timeout=10, headers=headers, verify=False)
+        headers = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'}
+        r = requests.get('https://www.aipan.me/api/tvbox', timeout=8, headers=headers, verify=False)
         if r.status_code == 200:
             aipan_list = r.json().get('list', [])
             combined_list.extend(aipan_list)
@@ -525,10 +525,12 @@ def api_external_aipan():
 
     def check_link(item):
         link = item.get('link', item.get('url'))
+        if not link:
+            return None
         try:
-            headers = {'User-Agent': 'Mozilla/5.0'}
+            headers = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'}
             # 使用 GET 而不是 HEAD，并加上 stream=True，避免某些服务器拒绝 HEAD 请求
-            res = requests.get(link, timeout=3, allow_redirects=True, headers=headers, verify=False, stream=True)
+            res = requests.get(link, timeout=4, allow_redirects=True, headers=headers, verify=False, stream=True)
             res.close() # 释放连接
             if res.status_code < 400:
                 return item
@@ -540,6 +542,10 @@ def api_external_aipan():
     with concurrent.futures.ThreadPoolExecutor(max_workers=30) as executor:
         results = list(executor.map(check_link, top_candidates))
         final_online_list = [r for r in results if r is not None]
+
+    # 回退机制：如果所有的链接测速都超时了（飞牛OS/网络原因），直接返回未测速的前 20 个，保证页面有内容
+    if not final_online_list and top_candidates:
+        final_online_list = top_candidates[:20]
 
     return jsonify({'status': 'success', 'list': final_online_list})
 
