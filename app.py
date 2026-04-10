@@ -495,7 +495,8 @@ def api_external_aipan():
 
     # 2. 从爱盼拉取的数据作为底部补充
     try:
-        r = requests.get('https://www.aipan.me/api/tvbox', timeout=5)
+        headers = {'User-Agent': 'Mozilla/5.0'}
+        r = requests.get('https://www.aipan.me/api/tvbox', timeout=10, headers=headers, verify=False)
         if r.status_code == 200:
             aipan_list = r.json().get('list', [])
             combined_list.extend(aipan_list)
@@ -525,8 +526,10 @@ def api_external_aipan():
     def check_link(item):
         link = item.get('link', item.get('url'))
         try:
-            # 仅做 HEAD 请求，超时设为 1.5s 提高用户感受
-            res = requests.head(link, timeout=1.5, allow_redirects=True)
+            headers = {'User-Agent': 'Mozilla/5.0'}
+            # 使用 GET 而不是 HEAD，并加上 stream=True，避免某些服务器拒绝 HEAD 请求
+            res = requests.get(link, timeout=3, allow_redirects=True, headers=headers, verify=False, stream=True)
+            res.close() # 释放连接
             if res.status_code < 400:
                 return item
         except:
@@ -559,6 +562,8 @@ def get_tvbox_json(username):
         params = [user['id']]
         if only_online:
             query += ' AND status = "online"'
+        
+        query += ' ORDER BY order_index ASC, id ASC'
             
         sources = db.execute(query, params).fetchall()
     
