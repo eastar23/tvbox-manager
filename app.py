@@ -19,7 +19,7 @@ DATABASE = os.environ.get('DB_PATH', '/app/data/database.db')
 REG_CODE = os.environ.get('REG_CODE', '888888')
 ADMIN_PASSWORD = os.environ.get('ADMIN_PASSWORD', 'admin888')
 BASE_URL = os.environ.get('BASE_URL', '').rstrip('/')
-APP_VERSION = "v1.0.11"  # 当前软件版本号
+APP_VERSION = "v1.0.12"  # 当前软件版本号
 
 def get_db():
     conn = sqlite3.connect(DATABASE)
@@ -257,18 +257,31 @@ def api_admin_push_recommendations():
         return jsonify({'status': 'error', 'message': '验证失败：未授权的 API Token'}), 401
         
     items = data.get('list', [])
+    
+    # 数据格式清洗：支持 [ "url1", "url2" ] 这种简单字符串列表，也支持 [ {"name": "...", "link": "..."} ]
+    normalized_items = []
+    for item in items:
+        if isinstance(item, str):
+            normalized_items.append({"name": "未命名的推荐源", "link": item})
+        elif isinstance(item, dict):
+            # 兼容 link 或 url 键名
+            link = item.get('link') or item.get('url')
+            name = item.get('name') or "未命名的推荐源"
+            if link:
+                normalized_items.append({"name": name, "link": link})
+    
     try:
         os.makedirs('/app/data', exist_ok=True)
         with open('/app/data/recommended.json', 'w', encoding='utf-8') as f:
-            json.dump({'list': items}, f, ensure_ascii=False)
-        return jsonify({'status': 'success', 'message': f'成功接收并更新 {len(items)} 条推荐源'})
+            json.dump({'list': normalized_items}, f, ensure_ascii=False)
+        return jsonify({'status': 'success', 'message': f'成功接收并更新 {len(normalized_items)} 条推荐源'})
     except Exception as e:
         # Fallback to local path if not in container
         try:
             os.makedirs('data', exist_ok=True)
             with open('data/recommended.json', 'w', encoding='utf-8') as f:
-                json.dump({'list': items}, f, ensure_ascii=False)
-            return jsonify({'status': 'success', 'message': f'成功接收并更新 {len(items)} 条推荐源'})
+                json.dump({'list': normalized_items}, f, ensure_ascii=False)
+            return jsonify({'status': 'success', 'message': f'成功接收并更新 {len(normalized_items)} 条推荐源'})
         except Exception as e2:
             return jsonify({'status': 'error', 'message': str(e2)})
 
