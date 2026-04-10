@@ -46,12 +46,11 @@ def bump_version():
         pass
     print(f"Created new version file: {new_version}")
 
-    # 自动执行 git 标签绑定，确保 GitHub Actions 的 docker/metadata-action 正确工作
-    os.system(f"git tag -a {new_version} -m 'Release {new_version}'")
-    print(f"\n✅ 自动创建本地 Git 标签完成: {new_version}")
-    print(f"请记得在提交完毕代码后，使用以下命令推送到远端以触发全自动发布：")
-    print(f"  git push origin main")
-    print(f"  git push origin {new_version}\n")
+    print(f"\n✅ 升级版本文件及配置完毕: {new_version}")
+    print(f"请使用以下命令完成提交和发版 (复制粘贴运行)：")
+    print(f"git commit -am 'chore: bump version to {new_version}'")
+    print(f"git tag {new_version}")
+    print(f"git push origin main && git push origin {new_version}\n")
         
     return old_version, new_version
 
