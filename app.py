@@ -20,7 +20,7 @@ DATABASE = os.environ.get('DB_PATH', '/app/data/database.db')
 REG_CODE = os.environ.get('REG_CODE', '888888')
 ADMIN_PASSWORD = os.environ.get('ADMIN_PASSWORD', 'admin888')
 BASE_URL = os.environ.get('BASE_URL', '').rstrip('/')
-APP_VERSION = "v1.0.15"  # 当前软件版本号
+APP_VERSION = "v1.0.16"  # 当前软件版本号
 
 def get_db():
     conn = sqlite3.connect(DATABASE)
@@ -503,6 +503,19 @@ def api_external_aipan():
     except Exception as e:
         print(f"Error loading aipan: {e}")
 
+    # 2.5 如果一切都失败了或没拉到数据，给一组经典保底的静态多仓接口
+    if not combined_list:
+        combined_list = [
+            {"name": "🌟 饭太硬", "link": "http://饭太硬.top/tv"},
+            {"name": "🐱 肥猫", "link": "http://肥猫.com"},
+            {"name": "🐉 道长", "link": "https://pastebin.com/raw/5NHaxyO7"},
+            {"name": "💨 南风", "link": "https://m3u8.xn--nwy97m.cn/nanfeng/lite.json"},
+            {"name": "📦 荷城茶秀", "link": "http://rihou.cc:88/荷城茶秀"},
+            {"name": "📱 小米", "link": "http://xhww.fun:63/小米/DEMO.json"},
+            {"name": "🚀 欧歌", "link": "http://tv.nxog.top/m"},
+            {"name": "🐼 熊猫", "link": "https://jihulab.com/yw88075/tvbox/-/raw/main/tv/tv.json"},
+        ]
+
     # --- 深度过滤与并发校验算法 ---
     
     # 3. 过滤掉用户已经添加过的接口 (根据 URL 去重)
@@ -519,35 +532,10 @@ def api_external_aipan():
             unique_candidates.append(item)
             seen_urls.add(link)
 
-    # 4. 并发存活校验（只显示在线的）
-    # 为了保证速度，我们只校验排名前 60 个，且设置极短的超时时间
-    top_candidates = unique_candidates[:60]
+    # 4. 直接返回候选列表，不再进行在线检测，防止因 NAS 网络环境导致全军覆没
+    final_list = unique_candidates[:40]
 
-    def check_link(item):
-        link = item.get('link', item.get('url'))
-        if not link:
-            return None
-        try:
-            headers = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'}
-            # 使用 GET 而不是 HEAD，并加上 stream=True，避免某些服务器拒绝 HEAD 请求
-            res = requests.get(link, timeout=4, allow_redirects=True, headers=headers, verify=False, stream=True)
-            res.close() # 释放连接
-            if res.status_code < 400:
-                return item
-        except:
-            pass
-        return None
-
-    # 使用线程池并发检测
-    with concurrent.futures.ThreadPoolExecutor(max_workers=30) as executor:
-        results = list(executor.map(check_link, top_candidates))
-        final_online_list = [r for r in results if r is not None]
-
-    # 回退机制：如果所有的链接测速都超时了（飞牛OS/网络原因），直接返回未测速的前 20 个，保证页面有内容
-    if not final_online_list and top_candidates:
-        final_online_list = top_candidates[:20]
-
-    return jsonify({'status': 'success', 'list': final_online_list})
+    return jsonify({'status': 'success', 'list': final_list})
 
 # --- The Core TVBOX JSON Generation API ---
 @app.route('/api/subscribe/<username>.json')
