@@ -4,17 +4,21 @@ import json
 import secrets
 import concurrent.futures
 import requests
+import logging
 from functools import wraps
 from flask import Flask, request, session, redirect, url_for, render_template, jsonify, Response
 from werkzeug.security import generate_password_hash, check_password_hash
 from werkzeug.middleware.proxy_fix import ProxyFix
 
+# --- Initialization & Logging ---
 app = Flask(__name__)
-# 适配反向代理，处理 X-Forwarded-Proto 等头部
 app.wsgi_app = ProxyFix(app.wsgi_app, x_for=1, x_proto=1, x_host=1, x_port=1, x_prefix=1)
 
+logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
+logger = logging.getLogger(__name__)
+
 # --- Configuration & Constants ---
-APP_VERSION = "v1.0.26"
+APP_VERSION = "v1.0.31"
 app.secret_key = os.environ.get('SECRET_KEY', 'super-secret-starlink-clone-key')
 DATABASE = os.environ.get('DB_PATH', '/app/data/database.db')
 REG_CODE = os.environ.get('REG_CODE', '888888')
@@ -26,6 +30,14 @@ http_session = requests.Session()
 http_session.headers.update({
     'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
 })
+
+@app.errorhandler(Exception)
+def handle_exception(e):
+    """全局意外错误处理"""
+    logger.error(f"Unhandled Exception: {str(e)}", exc_info=True)
+    if request.path.startswith('/api/'):
+        return jsonify({'status': 'error', 'message': '服务器内部错误'}), 500
+    return "系统异常，请稍后再试", 500
 
 # --- Database Layer ---
 def get_db():
