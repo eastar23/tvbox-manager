@@ -33,8 +33,6 @@ jobs:
             type=raw,value=${{ steps.extract_version.outputs.version }}
             type=ref,event=tag
             type=edge,branch=main
-          labels: |
-            org.opencontainers.image.version=${{ steps.extract_version.outputs.version }}
 
       - name: Log in to Docker Hub
         uses: docker/login-action@v2
@@ -48,5 +46,7 @@ jobs:
           context: .
           push: true
           tags: ${{ steps.meta.outputs.tags }}
-          labels: ${{ steps.meta.outputs.labels }}
+          labels: |
+            ${{ steps.meta.outputs.labels }}
+            org.opencontainers.image.version=${{ steps.extract_version.outputs.version }}
 
