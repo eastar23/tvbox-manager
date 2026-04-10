@@ -20,7 +20,7 @@ DATABASE = os.environ.get('DB_PATH', '/app/data/database.db')
 REG_CODE = os.environ.get('REG_CODE', '888888')
 ADMIN_PASSWORD = os.environ.get('ADMIN_PASSWORD', 'admin888')
 BASE_URL = os.environ.get('BASE_URL', '').rstrip('/')
-APP_VERSION = "v1.0.18"  # 当前软件版本号
+APP_VERSION = "v1.0.19"  # 当前软件版本号
 
 def get_db():
     conn = sqlite3.connect(DATABASE)
@@ -495,8 +495,9 @@ def api_external_aipan():
 
     # 2. 从爱盼拉取的数据作为底部补充
     try:
+        print(f"DEBUG: User {user_id} is fetching recommendations...")
         headers = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'}
-        r = requests.get('https://www.aipan.me/api/tvbox', timeout=8, headers=headers, verify=False)
+        r = requests.get('https://www.aipan.me/api/tvbox', timeout=5, headers=headers, verify=False)
         if r.status_code == 200:
             aipan_list = r.json().get('list', [])
             combined_list.extend(aipan_list)
