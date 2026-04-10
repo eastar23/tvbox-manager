@@ -5,6 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>影视仓接口中心 - 控制台</title>
     <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+    <script src="https://cdn.jsdelivr.net/npm/sortablejs@latest/Sortable.min.js"></script>
     <style>
         .dashboard-container { max-width: 1400px; width: 96%; margin: 0 auto; padding: 2rem; }
         .header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 2rem; }
@@ -113,7 +114,7 @@
 
             <div>
                 <div class="control-bar">
-                    <h3>📋 我的接口列表 (<span id="sourceCount">0</span>)</h3>
+                    <h3>📋 我的接口列表 (<span id="sourceCount">0</span>) <span style="font-size:0.8rem; font-weight:normal; color:var(--text-muted); margin-left:10px;">(左右拖拽卡片可打乱排序)</span></h3>
                     <button class="action-btn" onclick="loadSources()">🔄 刷新列表</button>
                 </div>
                 <div class="source-grid" id="sourceList"></div>
@@ -235,8 +236,10 @@
                 
                 const card = document.createElement('div');
                 card.className = `source-card ${typeClass}`;
+                card.dataset.id = item.id;
+                card.style.cursor = 'grab'; // 提示可拖拽
                 card.innerHTML = `
-                    <div class="source-header">
+                    <div class="source-header" style="cursor: grab;" active="cursor: grabbing;">
                         <div class="source-title">${item.name}</div>
                         <span class="status-badge status-checking" id="status-${item.id}">检查中...</span>
                     </div>
@@ -252,6 +255,41 @@
                 `;
                 container.appendChild(card);
                 checkStatus(item.id, item.url);
+            });
+            
+            // 初始化或刷新拖拽排序
+            initSortable();
+
+            // 异步检查状态
+            json.data.forEach(item => checkStatus(item.id, item.url));
+        }
+
+        let sortableInstance = null;
+        function initSortable() {
+            const container = document.getElementById('sourceList');
+            if (sortableInstance) {
+                sortableInstance.destroy();
+            }
+            sortableInstance = new Sortable(container, {
+                animation: 150,
+                delay: 100, // 给移动端稍加一点延迟防误触
+                delayOnTouchOnly: true,
+                onEnd: async function () {
+                    const cards = container.querySelectorAll('.source-card');
+                    const newOrder = Array.from(cards).map(card => parseInt(card.dataset.id));
+                    
+                    try {
+                        await fetch('/api/source/reorder', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ order: newOrder })
+                        });
+                        // 重绘实时预览JSON以匹配新序列
+                        fetchPreview();
+                    } catch(e) {
+                        console.error('排序保存失败', e);
+                    }
+                }
             });
         }
 

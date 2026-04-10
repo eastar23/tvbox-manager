@@ -20,7 +20,7 @@ DATABASE = os.environ.get('DB_PATH', '/app/data/database.db')
 REG_CODE = os.environ.get('REG_CODE', '888888')
 ADMIN_PASSWORD = os.environ.get('ADMIN_PASSWORD', 'admin888')
 BASE_URL = os.environ.get('BASE_URL', '').rstrip('/')
-APP_VERSION = "v1.0.13"  # 当前软件版本号
+APP_VERSION = "v1.0.14"  # 当前软件版本号
 
 def get_db():
     conn = sqlite3.connect(DATABASE)
@@ -61,6 +61,12 @@ def init_db():
         # 兼容旧数据库：尝试增加 status 列
         try:
             db.execute('ALTER TABLE sources ADD COLUMN status TEXT DEFAULT "unknown"')
+        except sqlite3.OperationalError:
+            pass
+
+        # 兼容旧数据库：尝试增加 order_index 列
+        try:
+            db.execute('ALTER TABLE sources ADD COLUMN order_index INTEGER DEFAULT 0')
         except sqlite3.OperationalError:
             pass
 
@@ -292,7 +298,7 @@ def api_admin_push_recommendations():
 def api_source_list():
     user_id = session['user_id']
     with get_db() as db:
-        sources = db.execute('SELECT * FROM sources WHERE user_id = ? ORDER BY id DESC', (user_id,)).fetchall()
+        sources = db.execute('SELECT * FROM sources WHERE user_id = ? ORDER BY order_index ASC, id ASC', (user_id,)).fetchall()
         sources_list = [dict(row) for row in sources]
     return jsonify({'status': 'success', 'data': sources_list})
 
@@ -391,13 +397,34 @@ def api_source_batch_add():
         return jsonify({'status': 'error', 'message': '未选择任何接口'})
     
     with get_db() as db:
+        max_order_row = db.execute('SELECT MAX(order_index) as m FROM sources WHERE user_id = ?', (user_id,)).fetchone()
+        next_order = (max_order_row['m'] or 0) + 1 if max_order_row else 1
+        
         for item in items:
             name = item.get('name', '未命名推荐源')
             link = item.get('link') or item.get('url')
             if link:
-                db.execute('INSERT INTO sources (user_id, name, url, type, status) VALUES (?, ?, ?, ?, ?)', (user_id, name, link, 'site', 'unknown'))
+                db.execute('INSERT INTO sources (user_id, name, url, type, status, order_index) VALUES (?, ?, ?, ?, ?, ?)', 
+                           (user_id, name, link, 'site', 'unknown', next_order))
+                next_order += 1
         db.commit()
     return jsonify({'status': 'success', 'message': f'成功批量添加 {len(items)} 个接口'})
+
+@app.route('/api/source/reorder', methods=['POST'])
+@login_required
+def api_source_reorder():
+    user_id = session['user_id']
+    order_data = request.json.get('order', [])
+    
+    if not isinstance(order_data, list):
+        return jsonify({'status': 'error', 'message': '无效的排序格式'})
+        
+    with get_db() as db:
+        for index, source_id in enumerate(order_data):
+            db.execute('UPDATE sources SET order_index = ? WHERE id = ? AND user_id = ?', (index, source_id, user_id))
+        db.commit()
+        
+    return jsonify({'status': 'success', 'message': '排序已保存'})
 
 @app.route('/api/source/update', methods=['POST'])
 @login_required
