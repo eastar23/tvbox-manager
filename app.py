@@ -16,8 +16,9 @@ app.secret_key = os.environ.get('SECRET_KEY', 'super-secret-starlink-clone-key')
 DATABASE = os.environ.get('DB_PATH', '/app/data/database.db')
 # 基础配置
 REG_CODE = os.environ.get('REG_CODE', '888888')
+ADMIN_PASSWORD = os.environ.get('ADMIN_PASSWORD', 'admin888')
 BASE_URL = os.environ.get('BASE_URL', '').rstrip('/')
-APP_VERSION = "v1.0.4"  # 当前软件版本号
+APP_VERSION = "v1.0.5"  # 当前软件版本号
 
 def get_db():
     conn = sqlite3.connect(DATABASE)
@@ -66,6 +67,16 @@ def login_required(f):
     def decorated_function(*args, **kwargs):
         if 'user_id' not in session:
             return redirect(url_for('login'))
+        return f(*args, **kwargs)
+    return decorated_function
+
+def admin_required(f):
+    @wraps(f)
+    def decorated_function(*args, **kwargs):
+        if not session.get('is_admin'):
+            if request.path.startswith('/api/'):
+                return jsonify({'status': 'error', 'message': '需要管理员权限'}), 403
+            return redirect(url_for('admin_dashboard'))
         return f(*args, **kwargs)
     return decorated_function
 
@@ -141,7 +152,75 @@ def api_logout():
     session.clear()
     return redirect(url_for('login'))
 
-@app.route('/api/source/list', methods=['GET'])
+# --- Admin Routes ---
+@app.route('/admin')
+def admin_dashboard():
+    is_admin = session.get('is_admin', False)
+    return render_template('admin.html', is_admin=is_admin)
+
+@app.route('/api/admin/login', methods=['POST'])
+def api_admin_login():
+    password = request.json.get('password', '')
+    if password == ADMIN_PASSWORD:
+        session['is_admin'] = True
+        return jsonify({'status': 'success', 'message': '登录成功'})
+    return jsonify({'status': 'error', 'message': '管理密码错误'})
+
+@app.route('/api/admin/logout', methods=['GET'])
+def api_admin_logout():
+    session.pop('is_admin', None)
+    return redirect(url_for('admin_dashboard'))
+
+@app.route('/api/admin/users', methods=['GET'])
+@admin_required
+def api_admin_users():
+    with get_db() as db:
+        users = db.execute('''
+            SELECT u.id, u.username, u.created_at, COUNT(s.id) as source_count
+            FROM users u
+            LEFT JOIN sources s ON u.id = s.user_id
+            GROUP BY u.id
+            ORDER BY u.id DESC
+        ''').fetchall()
+    return jsonify({'status': 'success', 'data': [dict(row) for row in users]})
+
+@app.route('/api/admin/users/delete', methods=['POST'])
+@admin_required
+def api_admin_users_delete():
+    user_id = request.json.get('id')
+    with get_db() as db:
+        db.execute('DELETE FROM sources WHERE user_id = ?', (user_id,))
+        db.execute('DELETE FROM users WHERE id = ?', (user_id,))
+        db.commit()
+    return jsonify({'status': 'success', 'message': '用户及接口数据已删除'})
+
+@app.route('/api/admin/recommendations/push', methods=['POST'])
+def api_admin_push_recommendations():
+    """Webhook for OpenClaw or external crawlers to push new data."""
+    data = request.json
+    pwd = data.get('password') or request.headers.get('Authorization')
+    clean_pwd = pwd.replace('Bearer ', '') if pwd else ''
+    
+    if clean_pwd != ADMIN_PASSWORD:
+        return jsonify({'status': 'error', 'message': 'Unauthorized'}), 401
+        
+    items = data.get('list', [])
+    try:
+        os.makedirs('/app/data', exist_ok=True)
+        with open('/app/data/recommended.json', 'w', encoding='utf-8') as f:
+            json.dump({'list': items}, f, ensure_ascii=False)
+        return jsonify({'status': 'success', 'message': f'成功接收并更新 {len(items)} 条推荐源'})
+    except Exception as e:
+        # Fallback to local path if not in container
+        try:
+            os.makedirs('data', exist_ok=True)
+            with open('data/recommended.json', 'w', encoding='utf-8') as f:
+                json.dump({'list': items}, f, ensure_ascii=False)
+            return jsonify({'status': 'success', 'message': f'成功接收并更新 {len(items)} 条推荐源'})
+        except Exception as e2:
+            return jsonify({'status': 'error', 'message': str(e2)})
+
+# --- Regular Source API Routes ---
 @login_required
 def api_source_list():
     user_id = session['user_id']
@@ -289,13 +368,37 @@ def api_source_check():
 @app.route('/api/external/aipan', methods=['GET'])
 @login_required
 def api_external_aipan():
+    combined_list = []
+    
+    # 1. 优先度更高的地方加载本地OpenClaw推送来的 JSON 数据
+    for data_path in ['/app/data/recommended.json', 'data/recommended.json']:
+        if os.path.exists(data_path):
+            try:
+                with open(data_path, 'r', encoding='utf-8') as f:
+                    local_data = json.load(f)
+                    combined_list.extend(local_data.get('list', []))
+            except Exception as e:
+                print(f"Error loading local recommended: {e}")
+            break
+
+    # 2. 从爱盼拉取的数据作为底部补充
     try:
-        r = requests.get('https://www.aipan.me/api/tvbox', timeout=10)
+        r = requests.get('https://www.aipan.me/api/tvbox', timeout=5)
         if r.status_code == 200:
-            return jsonify({'status': 'success', 'data': r.json().get('list', [])})
-        return jsonify({'status': 'error', 'message': '请求失败'})
+            aipan_list = r.json().get('list', [])
+            # 根据 URL去重
+            existing_urls = {item.get('link', item.get('url')) for item in combined_list}
+            for item in aipan_list:
+                link = item.get('link', item.get('url'))
+                if link not in existing_urls:
+                    combined_list.append(item)
+                    existing_urls.add(link)
     except Exception as e:
-        return jsonify({'status': 'error', 'message': str(e)})
+        print(f"Error loading aipan: {e}")
+
+    if combined_list:
+        return jsonify({'status': 'success', 'data': combined_list})
+    return jsonify({'status': 'error', 'message': '未找到推荐接口数据，尝试调用Webhook推送试试'})
 
 # --- The Core TVBOX JSON Generation API ---
 @app.route('/api/subscribe/<username>.json')

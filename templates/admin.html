@@ -1,0 +1,171 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>系统管理员面板 - TVBox Manager</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+    <style>
+        .admin-container { max-width: 1000px; width: 96%; margin: 2rem auto; }
+        .table-container { overflow-x: auto; margin-top: 2rem; }
+        table { width: 100%; border-collapse: collapse; text-align: left; }
+        th, td { padding: 12px 16px; border-bottom: 1px solid var(--border-glass); }
+        th { background: rgba(0,0,0,0.3); color: var(--text-muted); font-size: 0.9rem; font-weight: 600; }
+        tr:hover { background: rgba(59, 130, 246, 0.05); }
+        .badge { background: rgba(59, 130, 246, 0.2); color: #60a5fa; padding: 4px 8px; border-radius: 6px; font-size: 0.8rem; }
+    </style>
+</head>
+<body>
+    <div class="admin-container">
+        <div class="header" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 2rem;">
+            <h2 style="font-weight: 800; letter-spacing: -1px;">🛡️ 系统管理员面板</h2>
+            <div style="display: flex; gap: 1rem; align-items: center;">
+                <span class="version-tag">{{ version }}</span>
+                {% if is_admin %}
+                <a href="{{ url_for('api_admin_logout') }}" class="btn action-btn" style="width:auto; padding: 8px 15px">退出管理</a>
+                {% endif %}
+            </div>
+        </div>
+
+        {% if not is_admin %}
+        <div class="auth-wrapper" style="padding-top: 0;">
+            <div class="glass-panel auth-box">
+                <h2>管理员身份验证</h2>
+                <form id="adminLoginForm">
+                    <div class="form-group">
+                        <label>管理员核心密码 (ADMIN_PASSWORD)</label>
+                        <input type="password" id="password" class="form-control" required>
+                    </div>
+                    <button type="submit" class="btn btn-primary mt-4">验证并登录</button>
+                    <p id="errorMsg" class="error-msg text-center" style="margin-top:1rem;"></p>
+                </form>
+            </div>
+        </div>
+
+        <script>
+            document.getElementById('adminLoginForm').addEventListener('submit', async (e) => {
+                e.preventDefault();
+                const pwd = document.getElementById('password').value;
+                const res = await fetch('/api/admin/login', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({password: pwd})
+                });
+                const data = await res.json();
+                if(data.status === 'success') {
+                    window.location.reload();
+                } else {
+                    const err = document.getElementById('errorMsg');
+                    err.innerText = data.message;
+                    err.style.display = 'block';
+                }
+            });
+        </script>
+
+        {% else %}
+        
+        <div class="glass-panel">
+            <div style="display: flex; justify-content: space-between; align-items: center;">
+                <h3>👥 注册用户管理</h3>
+                <button class="action-btn" onclick="loadUsers()">🔄 刷新数据</button>
+            </div>
+            <div class="table-container">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>UID</th>
+                            <th>用户名</th>
+                            <th>存储接口数</th>
+                            <th>注册时间</th>
+                            <th style="text-align: right;">操作</th>
+                        </tr>
+                    </thead>
+                    <tbody id="userTableBody">
+                        <tr><td colspan="5" style="text-align: center; color: var(--text-muted); padding: 2rem;">加载中...</td></tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <div class="glass-panel" style="margin-top: 2rem;">
+            <h3>🤖 OpenClaw / Webhook 推送说明</h3>
+            <p style="color: var(--text-muted); font-size: 0.9rem; margin-top: 1rem; line-height: 1.6;">
+                如果您配置了外部的采集机器人（如 OpenClaw），可以将提取到的数据发送至以下接口，更新仪表盘的“推荐接口”版块。<br><br>
+                <strong>接口地址：</strong> <code>POST /api/admin/recommendations/push</code><br>
+                <strong>请求头验证：</strong> <code>Authorization: Bearer 您的管理密码</code><br>
+                <strong>请求 Body (JSON)：</strong><br>
+            </p>
+            <pre style="background: rgba(0,0,0,0.4); padding: 1rem; border-radius: 8px; margin-top: 1rem; color: #4ade80; font-family: monospace; font-size: 0.85rem;">{
+    "password": "也可以直接把管理密码放在这里",
+    "list": [
+        { "name": "某知名专线", "link": "http://example.com/api.json" },
+        { "name": "某超高清直播", "link": "http://example.com/live.txt" }
+    ]
+}</pre>
+        </div>
+
+        <script>
+            async function loadUsers() {
+                const tbody = document.getElementById('userTableBody');
+                try {
+                    const res = await fetch('/api/admin/users');
+                    const json = await res.json();
+                    
+                    if (json.status === 'success') {
+                        tbody.innerHTML = '';
+                        if (json.data.length === 0) {
+                            tbody.innerHTML = '<tr><td colspan="5" style="text-align: center;">暂无注册用户</td></tr>';
+                            return;
+                        }
+                        
+                        json.data.forEach(user => {
+                            const tr = document.createElement('tr');
+                            tr.innerHTML = `
+                                <td>#${user.id}</td>
+                                <td style="font-weight: 500;">${user.username}</td>
+                                <td><span class="badge">${user.source_count} 个接口</span></td>
+                                <td><span style="color: var(--text-muted); font-size: 0.85rem;">${user.created_at}</span></td>
+                                <td style="text-align: right;">
+                                    <button class="action-btn delete" onclick="deleteUser(${user.id}, '${user.username}')">封禁并删除</button>
+                                </td>
+                            `;
+                            tbody.appendChild(tr);
+                        });
+                    }
+                } catch (e) {
+                    tbody.innerHTML = '<tr><td colspan="5" style="text-align: center; color: #ef4444;">获取数据失败</td></tr>';
+                }
+            }
+
+            async function deleteUser(id, username) {
+                const confirmation = prompt(`该操作将永久删除用户 [${username}] 及其所有保存的接口数据！\n\n确认请在此输入该用户的用户名以放行：`);
+                if (confirmation !== username) {
+                    if(confirmation !== null) alert("输入不匹配，已取消删除操作。");
+                    return;
+                }
+                
+                try {
+                    const res = await fetch('/api/admin/users/delete', {
+                        method: 'POST',
+                        headers: {'Content-Type': 'application/json'},
+                        body: JSON.stringify({id: id})
+                    });
+                    const data = await res.json();
+                    if (data.status === 'success') {
+                        alert(data.message || '删除成功');
+                        loadUsers();
+                    } else {
+                        alert('删除失败：' + data.message);
+                    }
+                } catch (e) {
+                    alert('网络异常');
+                }
+            }
+
+            // Init
+            loadUsers();
+        </script>
+        {% endif %}
+    </div>
+</body>
+</html>
