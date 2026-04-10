@@ -56,6 +56,6 @@ jobs:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
           repository: ${{ secrets.DOCKERHUB_USERNAME }}/tvbox-manager
-          short-description: "TVBox 接口统一化管理工具，支持一键订阅、拖拽排序与自动在线检测。"
+          short-description: "TVBox 接口统一化管理工具，支持一键订阅、拖拽排序与自动在线检测。注册码：888888"
           readme-filepath: ./README.md
 
