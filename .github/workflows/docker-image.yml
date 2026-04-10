@@ -15,6 +15,13 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v3
 
+      # 提取 app.py 中的版本号
+      - name: Extract version
+        id: extract_version
+        run: |
+          VERSION=$(grep -o 'APP_VERSION = "[^"]*"' app.py | cut -d'"' -f2)
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+
       # 使用 metadata-action 自动提取版本号
       - name: Docker metadata
         id: meta
@@ -23,8 +30,11 @@ jobs:
           images: ${{ secrets.DOCKERHUB_USERNAME }}/tvbox-manager
           tags: |
             type=raw,value=latest,enable=${{ github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master' }}
+            type=raw,value=${{ steps.extract_version.outputs.version }}
             type=ref,event=tag
             type=edge,branch=main
+          labels: |
+            org.opencontainers.image.version=${{ steps.extract_version.outputs.version }}
 
       - name: Log in to Docker Hub
         uses: docker/login-action@v2
