@@ -29,17 +29,20 @@ jobs:
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
-      # 使用 metadata-action 提取版本号和标签
+      # 使用 metadata-action 提取更丰富的 OCI 元数据
       - name: Docker metadata
         id: meta
         uses: docker/metadata-action@v5
         with:
           images: ${{ secrets.DOCKERHUB_USERNAME }}/tvbox-manager
           tags: |
-            type=raw,value=latest,enable=${{ github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master' }}
+            # 自动生成 latest
+            type=raw,value=latest,enable={{is_default_branch}}
+            # 自动处理语义化版本 (v1.2.3 -> 1.2.3, 1.2, 1)
+            type=semver,pattern={{version}}
+            type=semver,pattern={{major}}.{{minor}}
+            # 给本地 app.py 定义的版本也打个标
             type=raw,value=${{ steps.extract_version.outputs.version }}
-            type=ref,event=tag
-            type=edge,branch=main
           flavor: |
             latest=auto
 

@@ -22,7 +22,7 @@ logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(
 logger = logging.getLogger(__name__)
 
 # --- Configuration & Constants ---
-APP_VERSION = "v1.0.35"
+APP_VERSION = "v1.0.41"
 app.secret_key = os.environ.get('SECRET_KEY', 'super-secret-starlink-clone-key')
 DATABASE = os.environ.get('DB_PATH', '/app/data/database.db')
 REG_CODE = os.environ.get('REG_CODE', '888888')
