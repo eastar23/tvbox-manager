@@ -1,10 +1,9 @@
 name: Auto Build and Publish to Docker Hub
 
-# 只有当您向 Github 的 main 或 master 分支推送代码时，才会全自动触发这个机器人
 on:
   push:
     branches: [ "main", "master" ]
-    tags: [ "v*" ]  # 当推送以 v 开头的标签（如 v1.0.1）时触发
+    tags: [ "v*" ]
   workflow_dispatch:
 
 jobs:
@@ -13,7 +12,7 @@ jobs:
 
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
 
       # 提取 app.py 中的版本号
       - name: Extract version
@@ -22,10 +21,18 @@ jobs:
           VERSION=$(grep -o 'APP_VERSION = "[^"]*"' app.py | cut -d'"' -f2)
           echo "version=$VERSION" >> $GITHUB_OUTPUT
 
-      # 使用 metadata-action 自动提取版本号
+      # 设置 QEMU (用于多架构构建)
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v3
+
+      # 设置 Buildx
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      # 使用 metadata-action 提取版本号和标签
       - name: Docker metadata
         id: meta
-        uses: docker/metadata-action@v4
+        uses: docker/metadata-action@v5
         with:
           images: ${{ secrets.DOCKERHUB_USERNAME }}/tvbox-manager
           tags: |
@@ -33,29 +40,33 @@ jobs:
             type=raw,value=${{ steps.extract_version.outputs.version }}
             type=ref,event=tag
             type=edge,branch=main
+          flavor: |
+            latest=auto
 
       - name: Log in to Docker Hub
-        uses: docker/login-action@v2
+        uses: docker/login-action@v3
         with:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
 
       - name: Build and push Docker image
-        uses: docker/build-push-action@v4
+        uses: docker/build-push-action@v6
         with:
           context: .
           push: true
+          platforms: linux/amd64,linux/arm64
           tags: ${{ steps.meta.outputs.tags }}
           labels: |
             ${{ steps.meta.outputs.labels }}
             org.opencontainers.image.version=${{ steps.extract_version.outputs.version }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
 
       - name: Update Docker Hub Description
-        uses: peter-evans/dockerhub-description@v3
+        uses: peter-evans/dockerhub-description@v4
         with:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
           repository: ${{ secrets.DOCKERHUB_USERNAME }}/tvbox-manager
           short-description: "TVBox 接口统一化管理工具，支持一键订阅、拖拽排序与自动在线检测。注册码：888888"
           readme-filepath: ./README.md
-
