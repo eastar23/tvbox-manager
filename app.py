@@ -22,7 +22,7 @@ logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(
 logger = logging.getLogger(__name__)
 
 # --- Configuration & Constants ---
-APP_VERSION = "v1.0.32"
+APP_VERSION = "v1.0.33"
 app.secret_key = os.environ.get('SECRET_KEY', 'super-secret-starlink-clone-key')
 DATABASE = os.environ.get('DB_PATH', '/app/data/database.db')
 REG_CODE = os.environ.get('REG_CODE', '888888')
@@ -315,11 +315,16 @@ def api_source_reorder():
 
 @app.route('/api/source/check', methods=['POST'])
 @login_required
-def api_source_check():
     url, sid = request.json.get('url'), request.json.get('id')
     if not url: return jsonify_error('URL missing')
+    
+    headers = {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
+    }
+    
     try:
-        r = http_session.get(url, timeout=5, stream=True, verify=False)
+        # 重归原生 requests.get 以提升对海量异构站点的兼容性，增加超时至 10s
+        r = requests.get(url, timeout=10, stream=True, verify=False, headers=headers)
         r.close()
         status = 'online' if r.status_code < 400 else 'offline'
         if sid:
@@ -328,6 +333,7 @@ def api_source_check():
                 db.commit()
         return jsonify_success(status=status, code=r.status_code)
     except Exception as e:
+        logger.error(f"Check failed for {url}: {str(e)}")
         if sid:
             with get_db() as db:
                 db.execute('UPDATE sources SET status = ? WHERE id = ? AND user_id = ?', ('offline', sid, session['user_id']))
