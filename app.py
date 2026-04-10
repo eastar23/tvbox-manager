@@ -9,6 +9,10 @@ from functools import wraps
 from flask import Flask, request, session, redirect, url_for, render_template, jsonify, Response
 from werkzeug.security import generate_password_hash, check_password_hash
 from werkzeug.middleware.proxy_fix import ProxyFix
+import urllib3
+
+# 禁用不安全请求警告（针对 verify=False）
+urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
 # --- Initialization & Logging ---
 app = Flask(__name__)
@@ -18,7 +22,7 @@ logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(
 logger = logging.getLogger(__name__)
 
 # --- Configuration & Constants ---
-APP_VERSION = "v1.0.31"
+APP_VERSION = "v1.0.32"
 app.secret_key = os.environ.get('SECRET_KEY', 'super-secret-starlink-clone-key')
 DATABASE = os.environ.get('DB_PATH', '/app/data/database.db')
 REG_CODE = os.environ.get('REG_CODE', '888888')
@@ -315,7 +319,7 @@ def api_source_check():
     url, sid = request.json.get('url'), request.json.get('id')
     if not url: return jsonify_error('URL missing')
     try:
-        r = http_session.get(url, timeout=5, stream=True)
+        r = http_session.get(url, timeout=5, stream=True, verify=False)
         r.close()
         status = 'online' if r.status_code < 400 else 'offline'
         if sid:
