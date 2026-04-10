@@ -20,7 +20,7 @@ DATABASE = os.environ.get('DB_PATH', '/app/data/database.db')
 REG_CODE = os.environ.get('REG_CODE', '888888')
 ADMIN_PASSWORD = os.environ.get('ADMIN_PASSWORD', 'admin888')
 BASE_URL = os.environ.get('BASE_URL', '').rstrip('/')
-APP_VERSION = "v1.0.14"  # 当前软件版本号
+APP_VERSION = "v1.0.15"  # 当前软件版本号
 
 def get_db():
     conn = sqlite3.connect(DATABASE)
