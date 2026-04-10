@@ -248,21 +248,26 @@
                     <div class="source-footer">
                         <span class="status-badge">${typeName}</span>
                         <div class="card-actions">
-                            <button class="action-btn" onclick='editSource(${JSON.stringify(item)})' title="编辑">✏️</button>
+                            <button class="action-btn" onclick='prepareEdit(this)' data-item='${btoa(encodeURIComponent(JSON.stringify(item)))}' title="编辑">✏️</button>
                             <button class="action-btn" onclick="copyText('${item.url}').then(()=>alert('链接已复制'))" title="复制链接">📋</button>
                             <button class="action-btn delete" onclick="deleteSource(${item.id})" title="删除">🗑️</button>
                         </div>
                     </div>
                 `;
                 container.appendChild(card);
-                checkStatus(item.id, item.url);
             });
             
             // 初始化或刷新拖拽排序
             initSortable();
 
-            // 异步检查状态
-            json.data.forEach(item => checkStatus(item.id, item.url));
+            // 异步检查状态（带微量延迟，防止瞬间冲垮数据库）
+            const sleep = ms => new Promise(res => setTimeout(res, ms));
+            (async () => {
+                for (const item of json.data) {
+                    await checkStatus(item.id, item.url);
+                    await sleep(50); // 间隔 50ms 发送一个请求
+                }
+            })();
         }
 
         let sortableInstance = null;
@@ -314,6 +319,13 @@
                 el.innerText = '超时';
                 el.className = 'status-badge status-offline';
             }
+        }
+
+        function prepareEdit(btn) {
+            try {
+                const item = JSON.parse(decodeURIComponent(atob(btn.dataset.item)));
+                editSource(item);
+            } catch(e) { console.error("解析编辑数据失败", e); }
         }
 
         function editSource(item) {
