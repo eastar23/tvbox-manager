@@ -103,6 +103,10 @@
 
                 <div class="glass-panel recommended-panel" style="flex: 1; min-width: 300px; max-width: 500px; margin: 0; display: flex; flex-direction: column;">
                     <h3 style="margin-bottom: 1.5rem; text-align: center;">🌟 推荐接口</h3>
+                    <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 10px; padding: 0 12px; height: 24px;">
+                        <input type="checkbox" id="selectAllRec" onclick="toggleSelectAllRec(this)" style="width: 15px; height: 15px; cursor: pointer;">
+                        <label for="selectAllRec" style="font-size: 0.8rem; color: var(--text-muted); cursor: pointer; user-select: none;">全选内容</label>
+                    </div>
                     <div id="recommendedList" style="flex-grow: 1; overflow-y: auto; max-height: 340px; padding-right: 10px; display: flex; flex-direction: column; gap: 10px;">
                         <p style="text-align: center; color: var(--text-muted); margin-top: 2rem;">加载中...</p>
                     </div>
@@ -390,6 +394,7 @@
                 const container = document.getElementById('recommendedList');
                 if (json.status === 'success' && json.data) {
                     container.innerHTML = '';
+                    document.getElementById('selectAllRec').checked = false; // 重置全选状态
                     json.data.forEach((item, index) => {
                         const recId = 'rec_' + index;
                         const row = document.createElement('div');
@@ -405,7 +410,6 @@
                                 </div>
                                 <div style="display: flex; align-items: center; gap: 8px; flex-shrink: 0;">
                                     <span class="status-badge status-checking" id="rec-status-${index}" style="font-size: 0.7rem;">查</span>
-                                    <button class="action-btn" style="padding: 4px 8px; font-size: 0.8rem; background: var(--accent); color: white; border: none; border-radius: 4px;" onclick="addSingleRecommended('${item.name}', '${item.link}')">添加</button>
                                 </div>
                             </div>
                         `;
@@ -483,7 +487,13 @@
             // Uncheck all after success
             if(successCount > 0) {
                 checkboxes.forEach(cb => cb.checked = false);
+                document.getElementById('selectAllRec').checked = false;
             }
+        }
+
+        function toggleSelectAllRec(master) {
+            const checkboxes = document.querySelectorAll('.rec-checkbox');
+            checkboxes.forEach(cb => cb.checked = master.checked);
         }
 
         async function addOnlineOnly() {
