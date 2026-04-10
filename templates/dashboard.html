@@ -106,8 +106,9 @@
                     <div id="recommendedList" style="flex-grow: 1; overflow-y: auto; max-height: 340px; padding-right: 10px; display: flex; flex-direction: column; gap: 10px;">
                         <p style="text-align: center; color: var(--text-muted); margin-top: 2rem;">加载中...</p>
                     </div>
-                    <div style="margin-top: 1.5rem; text-align: center; border-top: 1px solid var(--border-glass); padding-top: 1.5rem;">
-                        <button class="btn btn-primary" onclick="addSelectedRecommended()">批量添加选中</button>
+                    <div style="margin-top: 1.5rem; text-align: center; border-top: 1px solid var(--border-glass); padding-top: 1.5rem; display: flex; gap: 10px; justify-content: center;">
+                        <button class="btn btn-primary" style="flex: 1;" onclick="addSelectedRecommended()">批量添加选中</button>
+                        <button class="btn" style="flex: 1; background: transparent; border: 1px solid #4ade80; color: #4ade80;" onclick="addOnlineOnly()">一键添加在线</button>
                     </div>
                 </div>
             </div>
@@ -471,6 +472,45 @@
             if(successCount > 0) {
                 checkboxes.forEach(cb => cb.checked = false);
             }
+        async function addOnlineOnly() {
+            // 找到所有状态为“在线”的推荐项中的 checkbox
+            const onlineCheckboxes = [];
+            const items = document.querySelectorAll('.recommended-item');
+            items.forEach(item => {
+                const badge = item.querySelector('.status-badge');
+                if (badge && badge.classList.contains('status-online')) {
+                    const cb = item.querySelector('.rec-checkbox');
+                    if (cb) onlineCheckboxes.push(cb);
+                }
+            });
+
+            if (onlineCheckboxes.length === 0) {
+                alert('暂时没有检测到在线的接口，请稍候或手动勾选！');
+                return;
+            }
+
+            if (!confirm(`检测到 ${onlineCheckboxes.length} 个在线接口，是否一键添加？`)) return;
+
+            let successCount = 0;
+            let errorCount = 0;
+            const promises = onlineCheckboxes.map(async (cb) => {
+                const name = cb.getAttribute('data-name');
+                const url = cb.getAttribute('data-url');
+                try {
+                    const res = await fetch('/api/source/add', {
+                        method: 'POST',
+                        headers: {'Content-Type': 'application/json'},
+                        body: JSON.stringify({name, url, type: 'site'})
+                    });
+                    const data = await res.json();
+                    if(data.status === 'success') successCount++;
+                    else errorCount++;
+                } catch { errorCount++; }
+            });
+
+            await Promise.all(promises);
+            alert(`一键添加在线接口完成！成功: ${successCount}，跳过/重复: ${errorCount}`);
+            loadSources();
         }
 
         loadSources();
