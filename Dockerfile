@@ -1,5 +1,5 @@
 # 使用官方轻量级 Python 镜像作为基础，并锁定摘要以确保环境一致
-FROM python:3.11-slim@sha256:7328bf5c4fbdbb9589d9727407842ba5ba29e31d34c6e94f837da2845c2fd2f3
+FROM python:3.11-slim
 
 # 设置容器内工作目录
 WORKDIR /app
