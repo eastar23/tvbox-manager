@@ -22,7 +22,7 @@ logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(
 logger = logging.getLogger(__name__)
 
 # --- Configuration & Constants ---
-APP_VERSION = "v1.0.33"
+APP_VERSION = "v1.0.34"
 app.secret_key = os.environ.get('SECRET_KEY', 'super-secret-starlink-clone-key')
 DATABASE = os.environ.get('DB_PATH', '/app/data/database.db')
 REG_CODE = os.environ.get('REG_CODE', '888888')
@@ -315,6 +315,7 @@ def api_source_reorder():
 
 @app.route('/api/source/check', methods=['POST'])
 @login_required
+def api_source_check():
     url, sid = request.json.get('url'), request.json.get('id')
     if not url: return jsonify_error('URL missing')
     
