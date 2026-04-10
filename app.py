@@ -18,7 +18,7 @@ DATABASE = os.environ.get('DB_PATH', '/app/data/database.db')
 REG_CODE = os.environ.get('REG_CODE', '888888')
 ADMIN_PASSWORD = os.environ.get('ADMIN_PASSWORD', 'admin888')
 BASE_URL = os.environ.get('BASE_URL', '').rstrip('/')
-APP_VERSION = "v1.0.5"  # 当前软件版本号
+APP_VERSION = "v1.0.6"  # 当前软件版本号
 
 def get_db():
     conn = sqlite3.connect(DATABASE)
@@ -221,6 +221,7 @@ def api_admin_push_recommendations():
             return jsonify({'status': 'error', 'message': str(e2)})
 
 # --- Regular Source API Routes ---
+@app.route('/api/source/list', methods=['GET'])
 @login_required
 def api_source_list():
     user_id = session['user_id']
