@@ -18,7 +18,7 @@ DATABASE = os.environ.get('DB_PATH', '/app/data/database.db')
 REG_CODE = os.environ.get('REG_CODE', '888888')
 ADMIN_PASSWORD = os.environ.get('ADMIN_PASSWORD', 'admin888')
 BASE_URL = os.environ.get('BASE_URL', '').rstrip('/')
-APP_VERSION = "v1.0.6"  # 当前软件版本号
+APP_VERSION = "v1.0.7"  # 当前软件版本号
 
 def get_db():
     conn = sqlite3.connect(DATABASE)
@@ -36,9 +36,14 @@ def init_db():
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 username TEXT UNIQUE NOT NULL,
                 password_hash TEXT NOT NULL,
-                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                is_admin INTEGER DEFAULT 0
             )
         ''')
+        try:
+            db.execute('ALTER TABLE users ADD COLUMN is_admin INTEGER DEFAULT 0')
+        except sqlite3.OperationalError:
+            pass
         db.execute('''
             CREATE TABLE IF NOT EXISTS sources (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -56,6 +61,15 @@ def init_db():
             db.execute('ALTER TABLE sources ADD COLUMN status TEXT DEFAULT "unknown"')
         except sqlite3.OperationalError:
             pass
+
+        db.execute('''
+            CREATE TABLE IF NOT EXISTS settings (
+                key TEXT PRIMARY KEY,
+                value TEXT
+            )
+        ''')
+        # 初始化默认注册码
+        db.execute('INSERT OR IGNORE INTO settings (key, value) VALUES (?, ?)', ('invite_code', REG_CODE))
         db.commit()
 
 # Ensure DB is initialized before first request
@@ -103,10 +117,11 @@ def register():
 @login_required
 def dashboard():
     username = session.get('username')
+    is_admin = session.get('is_admin', False)
     # If BASE_URL is set, use it; otherwise fallback to request.host_url
     host_url = BASE_URL if BASE_URL else request.host_url.rstrip('/')
     sub_url = host_url + url_for('get_tvbox_json', username=username)
-    return render_template('dashboard.html', username=username, sub_url=sub_url)
+    return render_template('dashboard.html', username=username, sub_url=sub_url, is_admin=is_admin)
 
 # --- API Routes ---
 @app.route('/api/auth/register', methods=['POST'])
@@ -116,7 +131,11 @@ def api_register():
     password = data.get('password', '')
     invite_code = data.get('invite_code', '').strip()
 
-    if invite_code != REG_CODE:
+    with get_db() as db:
+        expected_code_row = db.execute("SELECT value FROM settings WHERE key = 'invite_code'").fetchone()
+        expected_code = expected_code_row['value'] if expected_code_row else REG_CODE
+
+    if invite_code != expected_code:
         return jsonify({'status': 'error', 'message': '专属邀请码不正确，拒绝注册！'})
 
     if not username or not password:
@@ -124,8 +143,11 @@ def api_register():
 
     try:
         with get_db() as db:
-            db.execute('INSERT INTO users (username, password_hash) VALUES (?, ?)', 
-                       (username, generate_password_hash(password, method='pbkdf2:sha256')))
+            user_count = db.execute("SELECT COUNT(id) as c FROM users").fetchone()['c']
+            is_admin = 1 if user_count == 0 else 0
+            
+            db.execute('INSERT INTO users (username, password_hash, is_admin) VALUES (?, ?, ?)', 
+                       (username, generate_password_hash(password, method='pbkdf2:sha256'), is_admin))
             db.commit()
             return jsonify({'status': 'success', 'message': '注册成功'})
     except sqlite3.IntegrityError:
@@ -143,6 +165,8 @@ def api_login():
     if user and check_password_hash(user['password_hash'], password):
         session['user_id'] = user['id']
         session['username'] = user['username']
+        # 兼容旧表没有 is_admin 的情况（虽然在 init_db 会尝试建，但通过 get 宽容获取）
+        session['is_admin'] = True if dict(user).get('is_admin') == 1 else False
         return jsonify({'status': 'success', 'message': '登录成功'})
     else:
         return jsonify({'status': 'error', 'message': '用户名或密码错误'})
@@ -155,21 +179,25 @@ def api_logout():
 # --- Admin Routes ---
 @app.route('/admin')
 def admin_dashboard():
-    is_admin = session.get('is_admin', False)
-    return render_template('admin.html', is_admin=is_admin)
+    if not session.get('is_admin'):
+        return redirect(url_for('login'))
+        
+    with get_db() as db:
+        expected_code_row = db.execute("SELECT value FROM settings WHERE key = 'invite_code'").fetchone()
+        invite_code = expected_code_row['value'] if expected_code_row else REG_CODE
+        
+    return render_template('admin.html', is_admin=True, invite_code=invite_code)
 
-@app.route('/api/admin/login', methods=['POST'])
-def api_admin_login():
-    password = request.json.get('password', '')
-    if password == ADMIN_PASSWORD:
-        session['is_admin'] = True
-        return jsonify({'status': 'success', 'message': '登录成功'})
-    return jsonify({'status': 'error', 'message': '管理密码错误'})
-
-@app.route('/api/admin/logout', methods=['GET'])
-def api_admin_logout():
-    session.pop('is_admin', None)
-    return redirect(url_for('admin_dashboard'))
+@app.route('/api/admin/settings/code', methods=['POST'])
+@admin_required
+def api_admin_update_code():
+    new_code = request.json.get('code', '').strip()
+    if not new_code:
+        return jsonify({'status': 'error', 'message': '邀请码不能为空'})
+    with get_db() as db:
+        db.execute("UPDATE settings SET value = ? WHERE key = 'invite_code'", (new_code,))
+        db.commit()
+    return jsonify({'status': 'success', 'message': '注册邀请码已更新'})
 
 @app.route('/api/admin/users', methods=['GET'])
 @admin_required

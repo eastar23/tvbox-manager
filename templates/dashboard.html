@@ -53,6 +53,9 @@
             <div style="display: flex; gap: 1rem; align-items: center;">
                 <span class="version-tag">{{ version }}</span>
                 <span style="color: var(--text-muted)">{{ username }}</span>
+                {% if is_admin %}
+                <a href="/admin" class="btn" style="width:auto; padding: 8px 15px; border: 1px solid #60a5fa; color: #60a5fa; text-decoration: none; border-radius: 8px;">🎛️ 管理控制台</a>
+                {% endif %}
                 <a href="{{ url_for('api_logout') }}" class="btn action-btn" style="width:auto; padding: 8px 15px">登出</a>
             </div>
         </div>
