@@ -1,5 +1,6 @@
 import os
 import sqlite3
+import secrets
 from flask import Flask, request, session, redirect, url_for, render_template, jsonify, Response
 from werkzeug.security import generate_password_hash, check_password_hash
 from functools import wraps
@@ -18,7 +19,7 @@ DATABASE = os.environ.get('DB_PATH', '/app/data/database.db')
 REG_CODE = os.environ.get('REG_CODE', '888888')
 ADMIN_PASSWORD = os.environ.get('ADMIN_PASSWORD', 'admin888')
 BASE_URL = os.environ.get('BASE_URL', '').rstrip('/')
-APP_VERSION = "v1.0.7"  # 当前软件版本号
+APP_VERSION = "v1.0.8"  # 当前软件版本号
 
 def get_db():
     conn = sqlite3.connect(DATABASE)
@@ -68,8 +69,9 @@ def init_db():
                 value TEXT
             )
         ''')
-        # 初始化默认注册码
+        # 初始化默认注册码和安全的 Webhook API Token
         db.execute('INSERT OR IGNORE INTO settings (key, value) VALUES (?, ?)', ('invite_code', REG_CODE))
+        db.execute('INSERT OR IGNORE INTO settings (key, value) VALUES (?, ?)', ('webhook_token', secrets.token_hex(16)))
         db.commit()
 
 # Ensure DB is initialized before first request
@@ -186,7 +188,10 @@ def admin_dashboard():
         expected_code_row = db.execute("SELECT value FROM settings WHERE key = 'invite_code'").fetchone()
         invite_code = expected_code_row['value'] if expected_code_row else REG_CODE
         
-    return render_template('admin.html', is_admin=True, invite_code=invite_code)
+        token_row = db.execute("SELECT value FROM settings WHERE key = 'webhook_token'").fetchone()
+        webhook_token = token_row['value'] if token_row else '未生成，请刷新重试'
+        
+    return render_template('admin.html', is_admin=True, invite_code=invite_code, webhook_token=webhook_token)
 
 @app.route('/api/admin/settings/code', methods=['POST'])
 @admin_required
@@ -198,6 +203,20 @@ def api_admin_update_code():
         db.execute("UPDATE settings SET value = ? WHERE key = 'invite_code'", (new_code,))
         db.commit()
     return jsonify({'status': 'success', 'message': '注册邀请码已更新'})
+
+@app.route('/api/admin/settings/token', methods=['POST'])
+@admin_required
+def api_admin_update_token():
+    new_token = secrets.token_hex(16)
+    with get_db() as db:
+        row = db.execute("SELECT value FROM settings WHERE key = 'webhook_token'").fetchone()
+        if row:
+            db.execute("UPDATE settings SET value = ? WHERE key = 'webhook_token'", (new_token,))
+        else:
+            db.execute("INSERT INTO settings (key, value) VALUES (?, ?)", ('webhook_token', new_token))
+        db.commit()
+    return jsonify({'status': 'success', 'message': 'API Token 已重置，请妥善保管', 'token': new_token})
+
 
 @app.route('/api/admin/users', methods=['GET'])
 @admin_required
@@ -226,11 +245,15 @@ def api_admin_users_delete():
 def api_admin_push_recommendations():
     """Webhook for OpenClaw or external crawlers to push new data."""
     data = request.json
-    pwd = data.get('password') or request.headers.get('Authorization')
+    pwd = data.get('password') or data.get('token') or request.headers.get('Authorization')
     clean_pwd = pwd.replace('Bearer ', '') if pwd else ''
     
-    if clean_pwd != ADMIN_PASSWORD:
-        return jsonify({'status': 'error', 'message': 'Unauthorized'}), 401
+    with get_db() as db:
+        token_row = db.execute("SELECT value FROM settings WHERE key = 'webhook_token'").fetchone()
+        expected_token = token_row['value'] if token_row else None
+        
+    if not expected_token or clean_pwd != expected_token:
+        return jsonify({'status': 'error', 'message': '验证失败：未授权的 API Token'}), 401
         
     items = data.get('list', [])
     try:

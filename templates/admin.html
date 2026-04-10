@@ -68,15 +68,28 @@
         </div>
 
         <div class="glass-panel" style="margin-top: 2rem;">
-            <h3>🤖 OpenClaw / Webhook 推送说明</h3>
-            <p style="color: var(--text-muted); font-size: 0.9rem; margin-top: 1rem; line-height: 1.6;">
-                如果您配置了外部的采集机器人（如 OpenClaw），可以将提取到的数据发送至以下接口，自动更新左侧的“推荐接口”全局列表。<br><br>
-                <strong>接口地址：</strong> <code style="user-select: all;">POST /api/admin/recommendations/push</code><br>
-                <strong>请求头验证：</strong> <code style="user-select: all;">Authorization: Bearer 您的初始管理员密码(默认 admin888)</code><br>
-                <strong>或直接传参：</strong><br>
+            <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 1.5rem;">
+                <div>
+                    <h3>🤖 OpenClaw / Webhook 推送设置</h3>
+                    <p style="color: var(--text-muted); font-size: 0.9rem; margin-top: 0.5rem;">给第三方机器人(如 OpenClaw) 提供的数据自动注入接口</p>
+                </div>
+                <div style="text-align: right;">
+                    <div style="font-size: 0.8rem; color: var(--text-muted); margin-bottom: 4px;">当前专属 API Token:</div>
+                    <div style="display: flex; gap: 8px; align-items: center;">
+                        <input type="text" id="webhookToken" value="{{ webhook_token }}" class="form-control" style="background: rgba(0,0,0,0.5); border: none; font-family: monospace; color: #4ade80; width: 330px;" readonly>
+                        <button class="action-btn" onclick="copyToken()">📋</button>
+                        <button class="action-btn" style="color: #ef4444;" onclick="resetToken()">🔄 重置</button>
+                    </div>
+                </div>
+            </div>
+
+            <p style="color: var(--text-muted); font-size: 0.9rem; line-height: 1.6;">
+                <strong>接口地址：</strong> <code style="user-select: all; background: #111827; padding: 2px 6px; border-radius: 4px;">POST /api/admin/recommendations/push</code><br>
+                <strong>请求头验证：</strong> <code style="user-select: all; background: #111827; padding: 2px 6px; border-radius: 4px;">Authorization: Bearer <span class="token-snip">您的 API Token</span></code><br>
+                <strong>或直接传参：</strong>
             </p>
-            <pre style="background: rgba(0,0,0,0.4); padding: 1rem; border-radius: 8px; margin-top: 1rem; color: #4ade80; font-family: monospace; font-size: 0.85rem;">{
-    "password": "直接放在这也可以(默认admin888，受环境变量 ADMIN_PASSWORD 控制)",
+            <pre style="background: rgba(0,0,0,0.4); padding: 1rem; border-radius: 8px; margin-top: 1rem; color: #60a5fa; font-family: monospace; font-size: 0.85rem;">{
+    "token": "也可以直接把上方绿色的 API Token 放在这里",
     "list": [
         { "name": "某知名专线", "link": "http://example.com/api.json" },
         { "name": "某超高清直播", "link": "http://example.com/live.txt" }
@@ -86,6 +99,24 @@
     </div>
 
     <script>
+        function copyToken() {
+            const token = document.getElementById('webhookToken').value;
+            navigator.clipboard.writeText(token).then(() => alert("API Token 已复制！"));
+        }
+
+        async function resetToken() {
+            if(!confirm("确定要重置 API Token 吗？\n重置后，以前配置了旧 Token 的机器人将无法再推送数据！")) return;
+            try {
+                const res = await fetch('/api/admin/settings/token', { method: 'POST' });
+                const data = await res.json();
+                if(data.status === 'success') {
+                    document.getElementById('webhookToken').value = data.token;
+                    alert(data.message);
+                }
+            } catch(e) {
+                alert("重置失败，网络异常");
+            }
+        }
         document.getElementById('settingsForm').addEventListener('submit', async (e) => {
             e.preventDefault();
             const code = document.getElementById('inviteCode').value;
