@@ -33,11 +33,18 @@ def bump_version():
         with open(readme_file, 'w', encoding='utf-8') as f:
             f.write(new_readme)
             
-    # 4. Update file marker
-    if os.path.exists(old_version):
-        os.remove(old_version)
+    # 4. Clean up all old version markers and create the new one
+    import glob
+    for old_file in glob.glob('v[0-9]*.[0-9]*.[0-9]*'):
+        try:
+            os.remove(old_file)
+            print(f"Removed old version file: {old_file}")
+        except OSError:
+            pass
+            
     with open(new_version, 'w') as f:
         pass
+    print(f"Created new version file: {new_version}")
         
     return old_version, new_version
 

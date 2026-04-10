@@ -17,7 +17,7 @@ DATABASE = os.environ.get('DB_PATH', '/app/data/database.db')
 # 基础配置
 REG_CODE = os.environ.get('REG_CODE', '888888')
 BASE_URL = os.environ.get('BASE_URL', '').rstrip('/')
-APP_VERSION = "v1.0.3"  # 当前软件版本号
+APP_VERSION = "v1.0.4"  # 当前软件版本号
 
 def get_db():
     conn = sqlite3.connect(DATABASE)
@@ -284,6 +284,17 @@ def api_source_check():
                 db.execute('UPDATE sources SET status = ? WHERE id = ? AND user_id = ?', 
                            ('offline', source_id, session['user_id']))
                 db.commit()
+        return jsonify({'status': 'error', 'message': str(e)})
+
+@app.route('/api/external/aipan', methods=['GET'])
+@login_required
+def api_external_aipan():
+    try:
+        r = requests.get('https://www.aipan.me/api/tvbox', timeout=10)
+        if r.status_code == 200:
+            return jsonify({'status': 'success', 'data': r.json().get('list', [])})
+        return jsonify({'status': 'error', 'message': '请求失败'})
+    except Exception as e:
         return jsonify({'status': 'error', 'message': str(e)})
 
 # --- The Core TVBOX JSON Generation API ---

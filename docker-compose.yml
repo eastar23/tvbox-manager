@@ -2,8 +2,12 @@ version: '3.8'
 
 services:
   tvbox-manager:
-    # 因为您使用 1Panel，它可以直接在服务器上帮您一键编译打包，无需借助外部镜像仓库！
-    build: .
+    # 模式 A：本地构建（1Panel 常用）。FNOS 无法自动发现此类更新，建议手动 Pull 或 Rebuild。
+    # build: .
+    
+    # 模式 B：镜像模式（推荐给 FNOS 用户）。当您推送新镜像到仓库后，飞牛OS 能自动发现 Digest 变化。
+    # 请将下面的 'yourusername' 替换为您的 Docker Hub 用户名
+    image: yourusername/tvbox-manager:latest
     container_name: tvbox-manager
     ports:
       - "8089:8089"
