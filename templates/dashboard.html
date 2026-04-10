@@ -443,21 +443,6 @@
             }
         }
 
-        async function addSingleRecommended(name, url) {
-            const res = await fetch('/api/source/add', {
-                method: 'POST',
-                headers: {'Content-Type': 'application/json'},
-                body: JSON.stringify({name, url, type: 'site'})
-            });
-            const data = await res.json();
-            if(data.status === 'success') {
-                alert('添加成功！');
-                loadSources();
-            } else {
-                alert(data.message);
-            }
-        }
-
         async function addSelectedRecommended() {
             const checkboxes = document.querySelectorAll('.rec-checkbox:checked');
             if (checkboxes.length === 0) {
