@@ -1,11 +1,12 @@
 import os
 import sqlite3
+import json
 import secrets
+import concurrent.futures
+import requests
+from functools import wraps
 from flask import Flask, request, session, redirect, url_for, render_template, jsonify, Response
 from werkzeug.security import generate_password_hash, check_password_hash
-from functools import wraps
-import json
-import requests
 from werkzeug.middleware.proxy_fix import ProxyFix
 
 app = Flask(__name__)
@@ -19,7 +20,7 @@ DATABASE = os.environ.get('DB_PATH', '/app/data/database.db')
 REG_CODE = os.environ.get('REG_CODE', '888888')
 ADMIN_PASSWORD = os.environ.get('ADMIN_PASSWORD', 'admin888')
 BASE_URL = os.environ.get('BASE_URL', '').rstrip('/')
-APP_VERSION = "v1.0.12"  # 当前软件版本号
+APP_VERSION = "v1.0.13"  # 当前软件版本号
 
 def get_db():
     conn = sqlite3.connect(DATABASE)
@@ -381,6 +382,23 @@ def api_source_delete():
         db.commit()
     return jsonify({'status': 'success', 'message': '删除成功'})
 
+@app.route('/api/source/batch_add', methods=['POST'])
+@login_required
+def api_source_batch_add():
+    user_id = session['user_id']
+    items = request.json.get('items', [])
+    if not items:
+        return jsonify({'status': 'error', 'message': '未选择任何接口'})
+    
+    with get_db() as db:
+        for item in items:
+            name = item.get('name', '未命名推荐源')
+            link = item.get('link') or item.get('url')
+            if link:
+                db.execute('INSERT INTO sources (user_id, name, url, type, status) VALUES (?, ?, ?, ?, ?)', (user_id, name, link, 'site', 'unknown'))
+        db.commit()
+    return jsonify({'status': 'success', 'message': f'成功批量添加 {len(items)} 个接口'})
+
 @app.route('/api/source/update', methods=['POST'])
 @login_required
 def api_source_update():
@@ -434,6 +452,7 @@ def api_source_check():
 @app.route('/api/external/aipan', methods=['GET'])
 @login_required
 def api_external_aipan():
+    user_id = session['user_id']
     combined_list = []
     
     # 1. 优先度更高的地方加载本地OpenClaw推送来的 JSON 数据
@@ -452,19 +471,47 @@ def api_external_aipan():
         r = requests.get('https://www.aipan.me/api/tvbox', timeout=5)
         if r.status_code == 200:
             aipan_list = r.json().get('list', [])
-            # 根据 URL去重
-            existing_urls = {item.get('link', item.get('url')) for item in combined_list}
-            for item in aipan_list:
-                link = item.get('link', item.get('url'))
-                if link not in existing_urls:
-                    combined_list.append(item)
-                    existing_urls.add(link)
+            combined_list.extend(aipan_list)
     except Exception as e:
         print(f"Error loading aipan: {e}")
 
-    if combined_list:
-        return jsonify({'status': 'success', 'data': combined_list})
-    return jsonify({'status': 'error', 'message': '未找到推荐接口数据，尝试调用Webhook推送试试'})
+    # --- 深度过滤与并发校验算法 ---
+    
+    # 3. 过滤掉用户已经添加过的接口 (根据 URL 去重)
+    with get_db() as db:
+        rows = db.execute('SELECT url FROM sources WHERE user_id = ?', (user_id,)).fetchall()
+        user_existing_urls = {row['url'] for row in rows}
+    
+    # 基础去重（防止推荐源本身重复）
+    unique_candidates = []
+    seen_urls = set()
+    for item in combined_list:
+        link = item.get('link', item.get('url'))
+        if link and link not in seen_urls and link not in user_existing_urls:
+            unique_candidates.append(item)
+            seen_urls.add(link)
+
+    # 4. 并发存活校验（只显示在线的）
+    # 为了保证速度，我们只校验排名前 60 个，且设置极短的超时时间
+    top_candidates = unique_candidates[:60]
+
+    def check_link(item):
+        link = item.get('link', item.get('url'))
+        try:
+            # 仅做 HEAD 请求，超时设为 1.5s 提高用户感受
+            res = requests.head(link, timeout=1.5, allow_redirects=True)
+            if res.status_code < 400:
+                return item
+        except:
+            pass
+        return None
+
+    # 使用线程池并发检测
+    with concurrent.futures.ThreadPoolExecutor(max_workers=30) as executor:
+        results = list(executor.map(check_link, top_candidates))
+        final_online_list = [r for r in results if r is not None]
+
+    return jsonify({'status': 'success', 'list': final_online_list})
 
 # --- The Core TVBOX JSON Generation API ---
 @app.route('/api/subscribe/<username>.json')
