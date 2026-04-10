@@ -7,7 +7,7 @@ services:
     
     # 模式 B：镜像模式（推荐给 FNOS 用户）。当您推送新镜像到仓库后，飞牛OS 能自动发现 Digest 变化。
     # 请将下面的 'yourusername' 替换为您的 Docker Hub 用户名
-    image: yourusername/tvbox-manager:latest
+    image: eastar23/tvbox-manager:latest
     container_name: tvbox-manager
     ports:
       - "8089:8089"
