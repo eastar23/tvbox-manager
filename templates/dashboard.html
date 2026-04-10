@@ -312,11 +312,11 @@
                     body: JSON.stringify({url, id})
                 });
                 const data = await res.json();
-                if(data.status === 'success') {
+                if(data.status === 'success' && data.status_val === 'online') {
                     el.innerText = '在线';
                     el.className = 'status-badge status-online';
                 } else {
-                    el.innerText = '异常';
+                    el.innerText = '离线';
                     el.className = 'status-badge status-offline';
                 }
             } catch (e) {
@@ -422,7 +422,7 @@
                             body: JSON.stringify({url: item.link})
                         }).then(r => r.json()).then(data => {
                             const badge = document.getElementById(`rec-status-${index}`);
-                            if(data.status === 'success') {
+                            if(data.status === 'success' && data.status_val === 'online') {
                                 badge.className = 'status-badge status-online';
                                 badge.innerText = '在线';
                             } else {

@@ -22,7 +22,7 @@ logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(
 logger = logging.getLogger(__name__)
 
 # --- Configuration & Constants ---
-APP_VERSION = "v1.0.34"
+APP_VERSION = "v1.0.35"
 app.secret_key = os.environ.get('SECRET_KEY', 'super-secret-starlink-clone-key')
 DATABASE = os.environ.get('DB_PATH', '/app/data/database.db')
 REG_CODE = os.environ.get('REG_CODE', '888888')
@@ -332,7 +332,7 @@ def api_source_check():
             with get_db() as db:
                 db.execute('UPDATE sources SET status = ? WHERE id = ? AND user_id = ?', (status, sid, session['user_id']))
                 db.commit()
-        return jsonify_success(status=status, code=r.status_code)
+        return jsonify_success(status_val=status, code=r.status_code)
     except Exception as e:
         logger.error(f"Check failed for {url}: {str(e)}")
         if sid:
