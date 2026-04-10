@@ -20,7 +20,7 @@ DATABASE = os.environ.get('DB_PATH', '/app/data/database.db')
 REG_CODE = os.environ.get('REG_CODE', '888888')
 ADMIN_PASSWORD = os.environ.get('ADMIN_PASSWORD', 'admin888')
 BASE_URL = os.environ.get('BASE_URL', '').rstrip('/')
-APP_VERSION = "v1.0.17"  # 当前软件版本号
+APP_VERSION = "v1.0.18"  # 当前软件版本号
 
 def get_db():
     conn = sqlite3.connect(DATABASE)
@@ -535,7 +535,7 @@ def api_external_aipan():
     # 4. 直接返回候选列表，不再进行在线检测，防止因 NAS 网络环境导致全军覆没
     final_list = unique_candidates[:40]
 
-    return jsonify({'status': 'success', 'list': final_list})
+    return jsonify({'status': 'success', 'data': final_list})
 
 # --- The Core TVBOX JSON Generation API ---
 @app.route('/api/subscribe/<username>.json')
